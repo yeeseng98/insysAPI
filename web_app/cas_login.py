@@ -99,15 +99,13 @@ def get_Form():
 
     cursor = db.cursor()
     db.row_factory = dictfetchall
-    cursor.execute("SELECT formatID, name, type, if(required=1,'true','false') as required, display, if(selected=1,'true','false') as selected, title FROM FormFormat WHERE formName='F1'")
+    cursor.execute("SELECT formatID, name, type, if(required=1,'true','false') as required, display, if(selected=1,'true','false') as selected, title FROM FormFormat WHERE formName='Test8'")
     #row_headers=[x[0] for x in cursor.description] #this will extract row headers
     records = dictfetchall(cursor)
-    print(records)
     #json_data=[]
     for result in records:
-        cursor.execute("select `key`,label from optionsTable o, (SELECT formatID from formformat where `type`='select') a  where o.fieldID = a.formatID AND o.fieldID =" + str(result['formatID']))
+        cursor.execute("select `key`,label from optionsTable o, (SELECT formatID from formformat where `type`='select') a where o.fieldID = a.formatID AND o.fieldID = '" + result['formatID'] +"'")
         row = dictfetchall(cursor)
-        print(row)
         if row is not None:
             result['options'] = row
         #json_data.append(dict(zip(row_headers,result)))
@@ -116,6 +114,31 @@ def get_Form():
     return json.dumps(records)
 
 @app.route("/newForm", methods=['POST'])
+def create_form():
+    db = mysql.connector.connect(
+        host="localhost",
+        user="root",
+        passwd="2247424yY",
+        database="intdatabase"
+    )
+
+    _json = request.json
+    _fname = _json['fname']
+ 
+    cursor = db.cursor()
+    insertForm = "INSERT INTO FormTable (formName) VALUES (%s)"
+    form = (_fname)
+    cursor.execute(insertForm, (form,))
+
+    db.commit()
+
+    cursor.close()
+
+    resp = jsonify('User updated successfully!')
+    resp.status_code = 200
+    return resp
+
+@app.route("/writeFields", methods=['POST'])
 def sub_form():
     db = mysql.connector.connect(
         host="localhost",
@@ -131,22 +154,24 @@ def sub_form():
     _required = _json['required']
     _display = _json['display']    
     _selected = _json['selected']
-    _title = _json['title']    
-    _options = _json['options']
- 
-    format_id = _name.lower()
-    print(format_id)
+    _title = _json['title']
+    _options = None
+    try:
+        _options = _json['options']
+    except:
+        print("This field has no options.")
 
+    format_id = _name.lower()
     cursor = db.cursor()
-    insertFields = "INSERT INTO FormFormat (formName, formatID, name, type, required, display, selected, title) VALUES (%s, %s, %s, %s, %s, %s, %s)"
+
+    insertFields = "INSERT INTO FormFormat (formName, formatID, name, type, required, display, selected, title) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)"
     field = (_fname, format_id, _name, _type, _required, _display, _selected, _title)
 
     cursor.execute(insertFields, field)
 
     insertOptions = "INSERT INTO optionsTable(fieldID, `key`, label) VALUES (%s, %s, %s)"
 
-    print(_options)
-    if not _options :
+    if _options is not None:
         for option in _options :
             print(option)
             opt = (format_id, option.lower(), option)
