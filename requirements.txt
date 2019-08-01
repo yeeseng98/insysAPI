@@ -1,0 +1,5 @@
+Flask
+Werkzeug
+python_jose
+mysql-connector-python
+requests requests_oauthlib
