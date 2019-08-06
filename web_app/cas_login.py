@@ -99,12 +99,12 @@ def get_Form():
 
     cursor = db.cursor()
     db.row_factory = dictfetchall
-    cursor.execute("SELECT formatID, name, type, if(required=1,'true','false') as required, display, if(selected=1,'true','false') as selected, title FROM FormFormat WHERE formName='Test8'")
+    cursor.execute("SELECT formatID, name, type, if(required=1,'true','false') as required, display, if(selected=1,'true','false') as selected, title FROM FormFormat WHERE formName='DAs'")
     #row_headers=[x[0] for x in cursor.description] #this will extract row headers
     records = dictfetchall(cursor)
     #json_data=[]
     for result in records:
-        cursor.execute("select `key`,label from optionsTable o, (SELECT formatID from formformat where `type`='select') a where o.fieldID = a.formatID AND o.fieldID = '" + result['formatID'] +"'")
+        cursor.execute("select `key`,label from optionsTable o, (SELECT formatID from formformat where `type`='select' OR `type`='multi') a where o.fieldID = a.formatID AND o.fieldID = '" + result['formatID'] +"'")
         row = dictfetchall(cursor)
         if row is not None:
             result['options'] = row
@@ -112,6 +112,31 @@ def get_Form():
 
     cursor.close()
     return json.dumps(records)
+
+
+@app.route("/formNameValidation", methods=['GET'])
+def check_form():
+    db = mysql.connector.connect(
+        host="localhost",
+        user="root",
+        passwd="2247424yY",
+        database="intdatabase"
+    )
+
+    cursor = db.cursor()
+    getFormName = "SELECT FormName FROM FormTable"
+    cursor.execute(getFormName)
+
+    row_headers=[x[0] for x in cursor.description] #this will extract row headers
+    records = cursor.fetchall()
+
+    json_data=[]
+    for result in records:
+        json_data.append(dict(zip(row_headers,result)))
+
+    cursor.close()
+
+    return json.dumps(json_data)
 
 @app.route("/newForm", methods=['POST'])
 def create_form():
@@ -194,117 +219,54 @@ def admin():
     return render_template("home.html")
 
 
-app.secret_key = 'super secret key'
 
-# To use http for openid Connect
-os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
-
-CONFIG = {
-    'client_id': 'this will be provided by CAS after you have registered your service successfully',
-    'client_secret': "this will be provided by CAS after you have registered your service successfully",
-    'auth_url': 'https://cas1.apiit.edu.my/cas/oidc/authorize',
-    'token_url': 'https://cas1.apiit.edu.my/cas/oidc/accessToken',
-    'scope': ['urn:globus:auth:scope:api.globus.org:all'],
-    'redirect_uri': "http://localhost:5000/callback"
-}
-
-OIDC_CONFIG = {
-    'jwt_pubkeys': keys,
-    'scope': ['openid', 'email', 'profile'],
-    'expected_issuer': 'https://cas1.apiit.edu.my/cas/oidc',
-    'algorithm': 'RS256',
-}
-authorization_response = input('http://localhost:5000/callback')
-
-CONFIG.update(OIDC_CONFIG)
+# ALLOWED_EXTENSIONS = set(['txt', 'pdf', 'png', 'jpg', 'jpeg', 'gif', 'docx'])
 
 
-@app.route('/login', methods=['GET'])
-def login():
-    provider = OAuth2Session(client_id=CONFIG['client_id'],
-                             scope=CONFIG['scope'],
-                             redirect_uri=CONFIG['redirect_uri'])
-    nonce = str(random.randint(0, 1e10))
+# def allowed_file(filename):
+#     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
-    url, state = provider.authorization_url(CONFIG['auth_url'],
-                                            nonce=nonce)
-    session['oauth2_state'] = state
-    session['nonce'] = nonce
-    return redirect(url)
+# @app.route('/fileSub', methods=['GET','POST'])
+# def submit():
+#     if request.method == 'POST':
+#         if 'file' not in request.files:
+#             flash('No file part')
+#             return redirect(request.url)
+#         file = request.files['file']
+#         content = request.files['file'].read()
 
+#         if file.filename == '':
+#             flash('No file selected for uploading')
+#             return redirect(request.url)
 
-@app.route('/callback', methods=['GET'])
-def callback():
-    provider = OAuth2Session(CONFIG['client_id'],
-                             redirect_uri=CONFIG['redirect_uri'],
-                             authorization_response=authorization_response,
-                             state=session['oauth2_state'])
-    response = provider.fetch_token(
-        token_url=CONFIG['token_url'],
-        client_secret=CONFIG['client_secret'])
+#         if file and allowed_file(file.filename):
+#             filename = secure_filename(file.filename)
+#             try:
+#                 cursor = db.cursor()
 
-    session['access_token'] = response['access_token']
-    id_token = response['id_token']
-    claims = jwt.decode(id_token,
-                        key=CONFIG['jwt_pubkeys'],
-                        issuer=CONFIG['expected_issuer'],
-                        audience=CONFIG['client_id'],
-                        algorithms=CONFIG['algorithm'],
-                        access_token=response['access_token'])
-    assert session['nonce'] == claims['nonce']
-    session['user_id'] = claims['sub']
-    session['user_email'] = claims['email']
-    session['user_name'] = claims['name']
-    return redirect(url_for('index'))
-
-
-ALLOWED_EXTENSIONS = set(['txt', 'pdf', 'png', 'jpg', 'jpeg', 'gif', 'docx'])
-
-
-def allowed_file(filename):
-    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
-
-@app.route('/fileSub', methods=['GET','POST'])
-def submit():
-    if request.method == 'POST':
-        if 'file' not in request.files:
-            flash('No file part')
-            return redirect(request.url)
-        file = request.files['file']
-        content = request.files['file'].read()
-
-        if file.filename == '':
-            flash('No file selected for uploading')
-            return redirect(request.url)
-
-        if file and allowed_file(file.filename):
-            filename = secure_filename(file.filename)
-            try:
-                cursor = db.cursor()
-
-                query = """INSERT INTO fileTable (fileName, content) VALUES
-                (%s,%s)"""
+#                 query = """INSERT INTO fileTable (fileName, content) VALUES
+#                 (%s,%s)"""
                 
-                subFile = (filename, content)
+#                 subFile = (filename, content)
 
-                result = cursor.execute(query, subFile)
+#                 result = cursor.execute(query, subFile)
 
-                db.commit()
-                print ("Image and file inserted successfully as a BLOB into fileTable table", result)
-            except mysql.connector.Error as error :
-                print(cursor.statement)
-                db.rollback()
-            finally:
-                # closing database connection.
-                if(db.is_connected()):
-                    cursor.close()
-                    db.close()
-            flash('File successfully uploaded')
-            return redirect('/')
+#                 db.commit()
+#                 print ("Image and file inserted successfully as a BLOB into fileTable table", result)
+#             except mysql.connector.Error as error :
+#                 print(cursor.statement)
+#                 db.rollback()
+#             finally:
+#                 # closing database connection.
+#                 if(db.is_connected()):
+#                     cursor.close()
+#                     db.close()
+#             flash('File successfully uploaded')
+#             return redirect('/')
 
-        else:
-            flash('Allowed file types are txt, pdf, png, jpg, jpeg, gif','docx')
-            return redirect(request.url)
+#         else:
+#             flash('Allowed file types are txt, pdf, png, jpg, jpeg, gif','docx')
+#             return redirect(request.url)
 
 if __name__ == '__main__':
     app.run(debug=True)
