@@ -8,19 +8,15 @@ from flask import render_template, url_for
 import mysql.connector
 from werkzeug.utils import secure_filename
 import json
+from flask_cors import CORS
 
 random = SystemRandom()
 
 app = Flask(__name__)
+CORS(app)
 
 keys = requests.get('https://cas1.apiit.edu.my/cas/oidc/jwks').json()
 
-db = mysql.connector.connect(
-    host="localhost",
-    user="root",
-    passwd="2247424yY",
-    database="intdatabase"
-)
 
 @app.route('/getcon', methods=['GET'])
 def get_contacts():
@@ -34,7 +30,8 @@ def get_contacts():
 
     cursor = db.cursor()
     cursor.execute("SELECT * FROM testTable")
-    row_headers=[x[0] for x in cursor.description] #this will extract row headers
+    # this will extract row headers
+    row_headers = [x[0] for x in cursor.description]
     records = cursor.fetchall()
 
     # INSERTION
@@ -44,24 +41,24 @@ def get_contacts():
     # mycursor.execute(query, flattened_values)
     # db.commit()
 
-    json_data=[]
+    json_data = []
     for result in records:
-        json_data.append(dict(zip(row_headers,result)))
+        json_data.append(dict(zip(row_headers, result)))
 
     cursor.close()
+    db.close()
 
     return json.dumps(json_data)
 
+
 @app.route('/upcon', methods=['POST'])
 def update_contacts():
-
     db = mysql.connector.connect(
         host="localhost",
         user="root",
         passwd="2247424yY",
         database="intdatabase"
     )
-
     _json = request.json
     _name = _json['data']
     _sid = _json['sid']
@@ -74,22 +71,24 @@ def update_contacts():
     db.commit()
 
     cursor.close()
+    db.close()
 
     resp = jsonify('User updated successfully!')
     resp.status_code = 200
     return resp
 
-def dictfetchall(cursor): 
-    #"Returns all rows from a cursor as a dict" 
-    desc = cursor.description 
+
+def dictfetchall(cursor):
+    #"Returns all rows from a cursor as a dict"
+    desc = cursor.description
     return [
-            dict(zip([col[0] for col in desc], row)) 
-            for row in cursor.fetchall() 
+        dict(zip([col[0] for col in desc], row))
+        for row in cursor.fetchall()
     ]
 
-@app.route('/getForm', methods=['GET'])
-def get_Form():
 
+@app.route('/getForm', methods=['GET'])
+def get_form():
     db = mysql.connector.connect(
         host="localhost",
         user="root",
@@ -100,19 +99,79 @@ def get_Form():
     cursor = db.cursor()
     db.row_factory = dictfetchall
     cursor.execute("SELECT formatID, name, type, if(required=1,'true','false') as required, display, if(selected=1,'true','false') as selected, title FROM FormFormat WHERE formName='DAs'")
-    #row_headers=[x[0] for x in cursor.description] #this will extract row headers
+    # row_headers=[x[0] for x in cursor.description] #this will extract row headers
     records = dictfetchall(cursor)
-    #json_data=[]
+    # json_data=[]
     for result in records:
-        cursor.execute("select `key`,label from optionsTable o, (SELECT formatID from formformat where `type`='select' OR `type`='multi') a where o.fieldID = a.formatID AND o.fieldID = '" + result['formatID'] +"'")
+        cursor.execute(
+            "select `key`,label from optionsTable o, (SELECT formatID from formformat where `type`='select' OR `type`='multi') a where o.fieldID = a.formatID AND o.fieldID = '" + result['formatID'] + "'")
         row = dictfetchall(cursor)
         if row is not None:
             result['options'] = row
-        #json_data.append(dict(zip(row_headers,result)))
+        # json_data.append(dict(zip(row_headers,result)))
 
     cursor.close()
+    db.close()
+
     return json.dumps(records)
 
+@app.route('/insertFormVal', methods=['POST'])
+def insert_form_value():
+    db = mysql.connector.connect(
+        host="localhost",
+        user="root",
+        passwd="2247424yY",
+        database="intdatabase"
+    )
+
+    _json = request.json
+    _fieldName = _json['fieldName']
+    _studentID = _json['studentID']
+    _fieldVal = _json['fieldVal']
+
+    cursor = db.cursor()
+    sql = "INSERT INTO FormFieldSubmission (fieldID, studentID, value) VALUES (%s, %s, %s)"
+    val = (_fieldName, _studentID, _fieldVal)
+
+    cursor.execute(sql, val)
+
+    db.commit()
+
+    cursor.close()
+    db.close()
+
+    resp = jsonify('Form data inserted successfully!')
+    resp.status_code = 200
+    return resp
+
+@app.route('/loadFormVal', methods=['GET'])
+def get_form_val():
+    db = mysql.connector.connect(
+        host="localhost",
+        user="root",
+        passwd="2247424yY",
+        database="intdatabase"
+    )
+
+    _fieldId = request.args.get('fieldId')
+    _stdId = request.args.get('stdId')
+
+    cursor = db.cursor(buffered=True)
+    sql = ("SELECT value from FormFieldSubmission where studentID = %s AND fieldID = %s")
+    val = (_stdId, _fieldId)
+
+    cursor.execute(sql, val)
+
+    row_headers = [x[0] for x in cursor.description]
+    records = cursor.fetchall()
+
+    json_data = []
+    for result in records:
+        json_data.append(dict(zip(row_headers, result)))
+    cursor.close()
+    db.close()
+
+    return json.dumps(json_data)
 
 @app.route("/formNameValidation", methods=['GET'])
 def check_form():
@@ -127,16 +186,19 @@ def check_form():
     getFormName = "SELECT FormName FROM FormTable"
     cursor.execute(getFormName)
 
-    row_headers=[x[0] for x in cursor.description] #this will extract row headers
+    # this will extract row headers
+    row_headers = [x[0] for x in cursor.description]
     records = cursor.fetchall()
 
-    json_data=[]
+    json_data = []
     for result in records:
-        json_data.append(dict(zip(row_headers,result)))
+        json_data.append(dict(zip(row_headers, result)))
 
     cursor.close()
+    db.close()
 
     return json.dumps(json_data)
+
 
 @app.route("/newForm", methods=['POST'])
 def create_form():
@@ -149,7 +211,7 @@ def create_form():
 
     _json = request.json
     _fname = _json['fname']
- 
+
     cursor = db.cursor()
     insertForm = "INSERT INTO FormTable (formName) VALUES (%s)"
     form = (_fname)
@@ -158,10 +220,12 @@ def create_form():
     db.commit()
 
     cursor.close()
+    db.close()
 
     resp = jsonify('User updated successfully!')
     resp.status_code = 200
     return resp
+
 
 @app.route("/writeFields", methods=['POST'])
 def sub_form():
@@ -177,7 +241,7 @@ def sub_form():
     _name = _json['name']
     _type = _json['type']
     _required = _json['required']
-    _display = _json['display']    
+    _display = _json['display']
     _selected = _json['selected']
     _title = _json['title']
     _options = None
@@ -190,24 +254,27 @@ def sub_form():
     cursor = db.cursor()
 
     insertFields = "INSERT INTO FormFormat (formName, formatID, name, type, required, display, selected, title) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)"
-    field = (_fname, format_id, _name, _type, _required, _display, _selected, _title)
+    field = (_fname, format_id, _name, _type,
+             _required, _display, _selected, _title)
 
     cursor.execute(insertFields, field)
 
     insertOptions = "INSERT INTO optionsTable(fieldID, `key`, label) VALUES (%s, %s, %s)"
 
     if _options is not None:
-        for option in _options :
+        for option in _options:
             print(option)
             opt = (format_id, option.lower(), option)
             cursor.execute(insertOptions, opt)
     db.commit()
 
     cursor.close()
+    db.close()
 
     resp = jsonify('User updated successfully!')
     resp.status_code = 200
     return resp
+
 
 @app.route("/")
 def home():
@@ -217,7 +284,6 @@ def home():
 @app.route("/home")
 def admin():
     return render_template("home.html")
-
 
 
 # ALLOWED_EXTENSIONS = set(['txt', 'pdf', 'png', 'jpg', 'jpeg', 'gif', 'docx'])
@@ -246,7 +312,7 @@ def admin():
 
 #                 query = """INSERT INTO fileTable (fileName, content) VALUES
 #                 (%s,%s)"""
-                
+
 #                 subFile = (filename, content)
 
 #                 result = cursor.execute(query, subFile)
@@ -267,6 +333,5 @@ def admin():
 #         else:
 #             flash('Allowed file types are txt, pdf, png, jpg, jpeg, gif','docx')
 #             return redirect(request.url)
-
 if __name__ == '__main__':
     app.run(debug=True)
