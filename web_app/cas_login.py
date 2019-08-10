@@ -432,12 +432,15 @@ def sub_tasks():
     _taskId = _json['taskId']
     _taskName = _json['taskName']
     _taskType = _json['taskType']
-    _formId = _json['formId']
+    _formId = None
+    
+    if _taskType == 'form':
+        _formId = _json['formId']
 
     cursor = db.cursor()
 
     insertFields = "INSERT INTO WorkflowPhaseTasks (phaseID, taskID, taskName, taskType, formID) VALUES (%s, %s, %s, %s, %s)"
-    field = (_phaseId, _taskId, _taskId, _taskName, _formId)
+    field = (_phaseId, _taskId, _taskName, _taskType, _formId)
 
     cursor.execute(insertFields, field)
 
