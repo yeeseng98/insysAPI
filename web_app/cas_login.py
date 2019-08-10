@@ -9,6 +9,7 @@ import mysql.connector
 from werkzeug.utils import secure_filename
 import json
 from flask_cors import CORS
+from datetime import datetime
 
 random = SystemRandom()
 
@@ -17,7 +18,7 @@ CORS(app)
 
 keys = requests.get('https://cas1.apiit.edu.my/cas/oidc/jwks').json()
 
-
+# TESTING API CALLS
 @app.route('/getcon', methods=['GET'])
 def get_contacts():
 
@@ -49,7 +50,6 @@ def get_contacts():
     db.close()
 
     return json.dumps(json_data)
-
 
 @app.route('/upcon', methods=['POST'])
 def update_contacts():
@@ -86,7 +86,9 @@ def dictfetchall(cursor):
         for row in cursor.fetchall()
     ]
 
+# FORM RELATED API CALLS
 
+# fetch form fields
 @app.route('/getForm', methods=['GET'])
 def get_form():
     db = mysql.connector.connect(
@@ -98,7 +100,7 @@ def get_form():
 
     cursor = db.cursor()
     db.row_factory = dictfetchall
-    cursor.execute("SELECT formatID, name, type, if(required=1,'true','false') as required, display, if(selected=1,'true','false') as selected, title FROM FormFormat WHERE formName='DAs'")
+    cursor.execute("SELECT formatID, name, type, if(required=1,'true','false') as required, display, if(selected=1,'true','false') as selected, title FROM FormFormat WHERE formID='das'")
     # row_headers=[x[0] for x in cursor.description] #this will extract row headers
     records = dictfetchall(cursor)
     # json_data=[]
@@ -115,6 +117,7 @@ def get_form():
 
     return json.dumps(records)
 
+# insert user input form data
 @app.route('/insertFormVal', methods=['POST'])
 def insert_form_value():
     db = mysql.connector.connect(
@@ -129,11 +132,24 @@ def insert_form_value():
     _studentID = _json['studentID']
     _fieldVal = _json['fieldVal']
 
-    cursor = db.cursor()
-    sql = "INSERT INTO FormFieldSubmission (fieldID, studentID, value) VALUES (%s, %s, %s)"
-    val = (_fieldName, _studentID, _fieldVal)
+    cursor = db.cursor(buffered=True,dictionary=True)
+    check_existing = "SELECT * FROM FormFieldSubmission WHERE fieldID = %s && studentID = %s"
+    check_values = (_fieldName, _studentID)
+    cursor.execute(check_existing, check_values)
 
-    cursor.execute(sql, val)
+    row_count = cursor.rowcount
+
+    print ("number of found rows: {}".format(row_count))
+    if row_count == 0:
+        insert_sql = "INSERT INTO FormFieldSubmission (fieldID, studentID, value) VALUES (%s, %s, %s)"
+        values = (_fieldName, _studentID, _fieldVal)
+        cursor.execute(insert_sql, values)
+        print ("record is inserted")
+    else:
+        update_sql = "UPDATE FormFieldSubmission SET value = %s WHERE fieldID = %s AND studentID = %s"
+        values = (_fieldVal, _fieldName, _studentID)
+        cursor.execute(update_sql, values)
+        print ("record is updated")
 
     db.commit()
 
@@ -144,6 +160,7 @@ def insert_form_value():
     resp.status_code = 200
     return resp
 
+# fetch user inserted form data
 @app.route('/loadFormVal', methods=['GET'])
 def get_form_val():
     db = mysql.connector.connect(
@@ -173,6 +190,7 @@ def get_form_val():
 
     return json.dumps(json_data)
 
+# sends a list of existing forms
 @app.route("/formNameValidation", methods=['GET'])
 def check_form():
     db = mysql.connector.connect(
@@ -183,7 +201,7 @@ def check_form():
     )
 
     cursor = db.cursor()
-    getFormName = "SELECT FormName FROM FormTable"
+    getFormName = "SELECT FormID FROM FormTable"
     cursor.execute(getFormName)
 
     # this will extract row headers
@@ -199,7 +217,34 @@ def check_form():
 
     return json.dumps(json_data)
 
+# sends a list of existing form names
+@app.route("/formList", methods=['GET'])
+def get_form_list():
+    db = mysql.connector.connect(
+        host="localhost",
+        user="root",
+        passwd="2247424yY",
+        database="intdatabase"
+    )
 
+    cursor = db.cursor()
+    getFormName = "SELECT FormID, FormName FROM FormTable"
+    cursor.execute(getFormName)
+
+    # this will extract row headers
+    row_headers = [x[0] for x in cursor.description]
+    records = cursor.fetchall()
+
+    json_data = []
+    for result in records:
+        json_data.append(dict(zip(row_headers, result)))
+
+    cursor.close()
+    db.close()
+
+    return json.dumps(json_data)
+
+# inserts a new form name
 @app.route("/newForm", methods=['POST'])
 def create_form():
     db = mysql.connector.connect(
@@ -211,11 +256,15 @@ def create_form():
 
     _json = request.json
     _fname = _json['fname']
+    _formId = _json['formId']
+
+    now = datetime.now()
+    cur = now.strftime('%Y-%m-%d %H:%M:%S')
 
     cursor = db.cursor()
-    insertForm = "INSERT INTO FormTable (formName) VALUES (%s)"
-    form = (_fname)
-    cursor.execute(insertForm, (form,))
+    insertForm = "INSERT INTO FormTable (formID, formName, dateCreated) VALUES (%s, %s, %s)"
+    form = (_formId, _fname, cur)
+    cursor.execute(insertForm, form)
 
     db.commit()
 
@@ -226,7 +275,7 @@ def create_form():
     resp.status_code = 200
     return resp
 
-
+# insert form fields
 @app.route("/writeFields", methods=['POST'])
 def sub_form():
     db = mysql.connector.connect(
@@ -253,7 +302,7 @@ def sub_form():
     format_id = _name.lower()
     cursor = db.cursor()
 
-    insertFields = "INSERT INTO FormFormat (formName, formatID, name, type, required, display, selected, title) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)"
+    insertFields = "INSERT INTO FormFormat (formID, formatID, name, type, required, display, selected, title) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)"
     field = (_fname, format_id, _name, _type,
              _required, _display, _selected, _title)
 
@@ -271,10 +320,135 @@ def sub_form():
     cursor.close()
     db.close()
 
-    resp = jsonify('User updated successfully!')
+    resp = jsonify('Form is created successfully!')
     resp.status_code = 200
     return resp
 
+# WORKFLOW RELATED API CALLS
+
+# send existing workflows
+@app.route("/workflowNameValidation", methods=['GET'])
+def check_workflow():
+    db = mysql.connector.connect(
+        host="localhost",
+        user="root",
+        passwd="2247424yY",
+        database="intdatabase"
+    )
+
+    cursor = db.cursor()
+    getWorkflowName = "SELECT WorkflowID FROM Workflow"
+    cursor.execute(getWorkflowName)
+
+    # this will extract row headers
+    row_headers = [x[0] for x in cursor.description]
+    records = cursor.fetchall()
+
+    json_data = []
+    for result in records:
+        json_data.append(dict(zip(row_headers, result)))
+
+    cursor.close()
+    db.close()
+
+    return json.dumps(json_data)
+
+# inserts a new workflow name
+@app.route("/newWorkflow", methods=['POST'])
+def create_workflow():
+    db = mysql.connector.connect(
+        host="localhost",
+        user="root",
+        passwd="2247424yY",
+        database="intdatabase"
+    )
+
+    _json = request.json
+    _workflowId = _json['workflowId']
+    _fname = _json['fname']
+
+    now = datetime.now()
+    cur = now.strftime('%Y-%m-%d %H:%M:%S')
+
+    cursor = db.cursor()
+    insertForm = "INSERT INTO Workflow (workflowID, workflowName, dateCreated) VALUES (%s, %s, %s)"
+    form = (_workflowId, _fname, cur)
+    cursor.execute(insertForm, form)
+
+    db.commit()
+
+    cursor.close()
+    db.close()
+
+    resp = jsonify('Workflow created successfully!')
+    resp.status_code = 200
+    return resp
+
+# insert workflow phases
+@app.route("/writePhases", methods=['POST'])
+def sub_phases():
+    db = mysql.connector.connect(
+        host="localhost",
+        user="root",
+        passwd="2247424yY",
+        database="intdatabase"
+    )
+
+    _json = request.json
+    _workflowId = _json['workflowId']
+    _phaseId = _json['phaseId']
+    _phaseOrder = _json['phaseOrder']
+    _phaseDuration = _json['phaseDuration']
+    _phaseName = _json['phaseName']
+
+    cursor = db.cursor()
+
+    insertFields = "INSERT INTO WorkflowPhase (workflowID, phaseID, phaseOrder, phaseName, phaseDuration) VALUES (%s, %s, %s, %s, %s)"
+    field = (_workflowId, _phaseId, _phaseOrder, _phaseName, _phaseDuration)
+
+    cursor.execute(insertFields, field)
+
+    db.commit()
+
+    cursor.close()
+    db.close()
+
+    resp = jsonify('Workflow phases written successfully!')
+    resp.status_code = 200
+    return resp
+
+# insert workflow tasks
+@app.route("/writeTasks", methods=['POST'])
+def sub_tasks():
+    db = mysql.connector.connect(
+        host="localhost",
+        user="root",
+        passwd="2247424yY",
+        database="intdatabase"
+    )
+
+    _json = request.json
+    _phaseId = _json['phaseId']
+    _taskId = _json['taskId']
+    _taskName = _json['taskName']
+    _taskType = _json['taskType']
+    _formId = _json['formId']
+
+    cursor = db.cursor()
+
+    insertFields = "INSERT INTO WorkflowPhaseTasks (phaseID, taskID, taskName, taskType, formID) VALUES (%s, %s, %s, %s, %s)"
+    field = (_phaseId, _taskId, _taskId, _taskName, _formId)
+
+    cursor.execute(insertFields, field)
+
+    db.commit()
+
+    cursor.close()
+    db.close()
+
+    resp = jsonify('Workflow tasks written successfully!')
+    resp.status_code = 200
+    return resp
 
 @app.route("/")
 def home():
