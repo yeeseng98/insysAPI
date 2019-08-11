@@ -51,6 +51,7 @@ def get_contacts():
 
     return json.dumps(json_data)
 
+
 @app.route('/upcon', methods=['POST'])
 def update_contacts():
     db = mysql.connector.connect(
@@ -98,9 +99,14 @@ def get_form():
         database="intdatabase"
     )
 
+    _fieldId = request.args.get('formId')
+
     cursor = db.cursor()
     db.row_factory = dictfetchall
-    cursor.execute("SELECT formatID, name, type, if(required=1,'true','false') as required, display, if(selected=1,'true','false') as selected, title FROM FormFormat WHERE formID='das'")
+
+    sql = ("SELECT formatID, name, type, if(required=1,'true','false') as required, display, if(selected=1,'true','false') as selected, title FROM FormFormat WHERE formID=%s")
+
+    cursor.execute(sql, (_fieldId,))
     # row_headers=[x[0] for x in cursor.description] #this will extract row headers
     records = dictfetchall(cursor)
     # json_data=[]
@@ -132,24 +138,24 @@ def insert_form_value():
     _studentID = _json['studentID']
     _fieldVal = _json['fieldVal']
 
-    cursor = db.cursor(buffered=True,dictionary=True)
+    cursor = db.cursor(buffered=True, dictionary=True)
     check_existing = "SELECT * FROM FormFieldSubmission WHERE fieldID = %s && studentID = %s"
     check_values = (_fieldName, _studentID)
     cursor.execute(check_existing, check_values)
 
     row_count = cursor.rowcount
 
-    print ("number of found rows: {}".format(row_count))
+    print("number of found rows: {}".format(row_count))
     if row_count == 0:
         insert_sql = "INSERT INTO FormFieldSubmission (fieldID, studentID, value) VALUES (%s, %s, %s)"
         values = (_fieldName, _studentID, _fieldVal)
         cursor.execute(insert_sql, values)
-        print ("record is inserted")
+        print("record is inserted")
     else:
         update_sql = "UPDATE FormFieldSubmission SET value = %s WHERE fieldID = %s AND studentID = %s"
         values = (_fieldVal, _fieldName, _studentID)
         cursor.execute(update_sql, values)
-        print ("record is updated")
+        print("record is updated")
 
     db.commit()
 
@@ -228,7 +234,7 @@ def get_form_list():
     )
 
     cursor = db.cursor()
-    getFormName = "SELECT FormID, FormName FROM FormTable"
+    getFormName = "SELECT FormID, FormName, DateCreated FROM FormTable"
     cursor.execute(getFormName)
 
     # this will extract row headers
@@ -242,7 +248,7 @@ def get_form_list():
     cursor.close()
     db.close()
 
-    return json.dumps(json_data)
+    return json.dumps(json_data, default=str)
 
 # inserts a new form name
 @app.route("/newForm", methods=['POST'])
@@ -433,7 +439,7 @@ def sub_tasks():
     _taskName = _json['taskName']
     _taskType = _json['taskType']
     _formId = None
-    
+
     if _taskType == 'form':
         _formId = _json['formId']
 
@@ -452,6 +458,62 @@ def sub_tasks():
     resp = jsonify('Workflow tasks written successfully!')
     resp.status_code = 200
     return resp
+
+# sends a list of existing form names
+@app.route("/workflowList", methods=['GET'])
+def get_workflow_list():
+    db = mysql.connector.connect(
+        host="localhost",
+        user="root",
+        passwd="2247424yY",
+        database="intdatabase"
+    )
+
+    cursor = db.cursor()
+    getFormName = "SELECT WorkflowID, WorkflowName, DateCreated FROM Workflow"
+    cursor.execute(getFormName)
+
+    # this will extract row headers
+    row_headers = [x[0] for x in cursor.description]
+    records = cursor.fetchall()
+
+    json_data = []
+    for result in records:
+        json_data.append(dict(zip(row_headers, result)))
+
+    cursor.close()
+    db.close()
+
+    return json.dumps(json_data, default=str)
+
+# sends a list of existing form names
+@app.route("/getWorkflow", methods=['GET'])
+def get_workflow():
+    db = mysql.connector.connect(
+        host="localhost",
+        user="root",
+        passwd="2247424yY",
+        database="intdatabase"
+    )
+
+    _workflowId = request.args.get('workflowId')
+    print(_workflowId)
+    cursor = db.cursor()
+    getWorkflow = "SELECT * FROM Workflow w INNER JOIN workflowphase p ON w.workflowID = p.workflowID INNER JOIN workflowphasetasks t ON p.phaseID = t.phaseID WHERE p.workflowID=%s ORDER BY p.phaseOrder"
+    cursor.execute(getWorkflow, (_workflowId,))
+
+    # this will extract row headers
+    row_headers = [x[0] for x in cursor.description]
+    records = cursor.fetchall()
+
+    json_data = []
+    for result in records:
+        json_data.append(dict(zip(row_headers, result)))
+
+    cursor.close()
+    db.close()
+
+    return json.dumps(json_data, default=str)
 
 @app.route("/")
 def home():
