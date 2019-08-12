@@ -515,6 +515,67 @@ def get_workflow():
 
     return json.dumps(json_data, default=str)
 
+ # sends phase info of selected workflow
+@app.route("/phaseData", methods=['GET'])
+def get_phases():
+    db = mysql.connector.connect(
+        host="localhost",
+        user="root",
+        passwd="2247424yY",
+        database="intdatabase"
+    )
+
+    _workflowId = request.args.get('workflowId')
+    print(_workflowId)
+    cursor = db.cursor()
+    getWorkflow = "select * from Workflow w inner join workflowphase p on w.workflowID = p.workflowID WHERE p.workflowID = %s order by p.phaseOrder"
+    cursor.execute(getWorkflow, (_workflowId,))
+
+    # this will extract row headers
+    row_headers = [x[0] for x in cursor.description]
+    records = cursor.fetchall() 
+
+    json_data = []
+    for result in records:
+        json_data.append(dict(zip(row_headers, result)))
+
+    cursor.close()
+    db.close()
+
+    return json.dumps(json_data, default=str)
+
+# insert workflow assignment
+@app.route("/assignFlow", methods=['POST'])
+def assign_workflow():
+    db = mysql.connector.connect(
+        host="localhost",
+        user="root",
+        passwd="2247424yY",
+        database="intdatabase"
+    )
+
+    _json = request.json
+    _intakeCode = _json['intakeCode']
+    _workflowId = _json['workflowId']
+    _startDate = _json['startDate']
+    _endDate = _json['endDate']
+
+    cursor = db.cursor()
+
+    insertFields = "INSERT INTO Intake_Workflow (intakeCode, workflowId, startDate, endDate) VALUES (%s, %s, %s, %s)"
+    field = (_intakeCode, _workflowId, _startDate, _endDate)
+
+    cursor.execute(insertFields, field)
+
+    db.commit()
+
+    cursor.close()
+    db.close()
+
+    resp = jsonify('Workflow assignment written successfully!')
+    resp.status_code = 200
+    return resp
+
 @app.route("/")
 def home():
     return render_template("admin/admin_copy.html")
