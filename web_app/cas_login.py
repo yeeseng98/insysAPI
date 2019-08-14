@@ -438,6 +438,7 @@ def sub_tasks():
     _taskId = _json['taskId']
     _taskName = _json['taskName']
     _taskType = _json['taskType']
+    _desc = _json['desc']
     _formId = None
 
     if _taskType == 'form':
@@ -445,8 +446,8 @@ def sub_tasks():
 
     cursor = db.cursor()
 
-    insertFields = "INSERT INTO WorkflowPhaseTasks (phaseID, taskID, taskName, taskType, formID) VALUES (%s, %s, %s, %s, %s)"
-    field = (_phaseId, _taskId, _taskName, _taskType, _formId)
+    insertFields = "INSERT INTO WorkflowPhaseTasks (phaseID, taskID, taskName, `desc`, taskType, formID) VALUES (%s, %s, %s, %s, %s, %s)"
+    field = (_phaseId, _taskId, _taskName, _desc, _taskType, _formId)
 
     cursor.execute(insertFields, field)
 
@@ -575,6 +576,34 @@ def assign_workflow():
     resp = jsonify('Workflow assignment written successfully!')
     resp.status_code = 200
     return resp
+
+# receive student's intake and return a set of tasks from workflow
+@app.route("/intakeTasks", methods=['GET'])
+def get_intake_tasks():
+    db = mysql.connector.connect(
+        host="localhost",
+        user="root",
+        passwd="2247424yY",
+        database="intdatabase"
+    )
+
+    _intakeId = request.args.get('intakeId')
+    cursor = db.cursor()
+    getTasks = "select * from workflowphase p INNER JOIN workflowphasetasks t on p.phaseID = t.phaseID INNER JOIN intake_workflow i on i.workflowID = p.workflowID where i.intakeCode = %s order by p.phaseOrder"
+    cursor.execute(getTasks, (_intakeId,))
+
+    # this will extract row headers
+    row_headers = [x[0] for x in cursor.description]
+    records = cursor.fetchall() 
+
+    json_data = []
+    for result in records:
+        json_data.append(dict(zip(row_headers, result)))
+
+    cursor.close()
+    db.close()
+
+    return json.dumps(json_data, default=str)
 
 @app.route("/")
 def home():
