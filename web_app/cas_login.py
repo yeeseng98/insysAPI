@@ -137,6 +137,7 @@ def insert_form_value():
     _fieldName = _json['fieldName']
     _studentID = _json['studentID']
     _fieldVal = _json['fieldVal']
+    _taskId = _json['taskId']
 
     cursor = db.cursor(buffered=True, dictionary=True)
     check_existing = "SELECT * FROM FormFieldSubmission WHERE fieldID = %s && studentID = %s"
@@ -147,13 +148,13 @@ def insert_form_value():
 
     print("number of found rows: {}".format(row_count))
     if row_count == 0:
-        insert_sql = "INSERT INTO FormFieldSubmission (fieldID, studentID, value) VALUES (%s, %s, %s)"
-        values = (_fieldName, _studentID, _fieldVal)
+        insert_sql = "INSERT INTO FormFieldSubmission (fieldID, studentID, value, taskID) VALUES (%s, %s, %s, %s)"
+        values = (_fieldName, _studentID, _fieldVal, _taskId)
         cursor.execute(insert_sql, values)
         print("record is inserted")
     else:
-        update_sql = "UPDATE FormFieldSubmission SET value = %s WHERE fieldID = %s AND studentID = %s"
-        values = (_fieldVal, _fieldName, _studentID)
+        update_sql = "UPDATE FormFieldSubmission SET value = %s WHERE fieldID = %s AND studentID = %s AND taskID = %s"
+        values = (_fieldVal, _fieldName, _studentID, _taskId)
         cursor.execute(update_sql, values)
         print("record is updated")
 
@@ -163,6 +164,49 @@ def insert_form_value():
     db.close()
 
     resp = jsonify('Form data inserted successfully!')
+    resp.status_code = 200
+    return resp
+
+# insert user input form data
+@app.route('/recordSubmission', methods=['POST'])
+def record_submission():
+    db = mysql.connector.connect(
+        host="localhost",
+        user="root",
+        passwd="2247424yY",
+        database="intdatabase"
+    )
+
+    _json = request.json
+    _studentId = _json['studentId']
+    _taskId = _json['taskId']
+
+    cursor = db.cursor(buffered=True, dictionary=True)
+    check_existing = "SELECT * FROM submissionRecords WHERE taskID = %s && studentID = %s"
+    check_values = (_taskId, _studentId)
+    cursor.execute(check_existing, check_values)
+
+    row_count = cursor.rowcount
+
+    now = datetime.now()
+    cur = now.strftime('%Y-%m-%d %H:%M:%S')
+
+    print("number of found rows: {}".format(row_count))
+    if row_count == 0:
+        insert_sql = "INSERT INTO submissionRecords (studentID, taskID, submissionTime) VALUES (%s, %s, %s)"
+        values = (_studentId, _taskId, cur)
+        cursor.execute(insert_sql, values)
+    else:
+        update_sql = "UPDATE FormFieldSubmission SET submissionTime = %s WHERE studentID = %s AND taskID = %s"
+        values = (cur, _studentId, _taskId)
+        cursor.execute(update_sql, values)
+
+    db.commit()
+
+    cursor.close()
+    db.close()
+
+    resp = jsonify('Submission is recorded successfully!')
     resp.status_code = 200
     return resp
 
@@ -178,10 +222,11 @@ def get_form_val():
 
     _fieldId = request.args.get('fieldId')
     _stdId = request.args.get('stdId')
+    _taskId = request.args.get('taskId')
 
     cursor = db.cursor(buffered=True)
-    sql = ("SELECT value from FormFieldSubmission where studentID = %s AND fieldID = %s")
-    val = (_stdId, _fieldId)
+    sql = ("SELECT value from FormFieldSubmission where studentID = %s AND fieldID = %s AND taskID = %s")
+    val = (_stdId, _fieldId, _taskId)
 
     cursor.execute(sql, val)
 
@@ -577,6 +622,38 @@ def assign_workflow():
     resp.status_code = 200
     return resp
 
+# insert phase date assignment
+@app.route("/assignPhaseDates", methods=['POST'])
+def assign_phase_dates():
+    db = mysql.connector.connect(
+        host="localhost",
+        user="root",
+        passwd="2247424yY",
+        database="intdatabase"
+    )
+
+    _json = request.json
+    _intakeCode = _json['intakeCode']
+    _phaseId = _json['phaseId']
+    _startDate = _json['startDate']
+    _endDate = _json['endDate']
+
+    cursor = db.cursor()
+
+    insertFields = "INSERT INTO intake_phase_duration (intakeID, phaseID, startDate, endDate) VALUES (%s, %s, %s, %s)"
+    field = (_intakeCode, _phaseId, _startDate, _endDate)
+
+    cursor.execute(insertFields, field)
+
+    db.commit()
+
+    cursor.close()
+    db.close()
+
+    resp = jsonify('Phase date assignment written successfully!')
+    resp.status_code = 200
+    return resp
+
 # receive student's intake and return a set of tasks from workflow
 @app.route("/intakeTasks", methods=['GET'])
 def get_intake_tasks():
@@ -590,6 +667,35 @@ def get_intake_tasks():
     _intakeId = request.args.get('intakeId')
     cursor = db.cursor()
     getTasks = "select * from workflowphase p INNER JOIN workflowphasetasks t on p.phaseID = t.phaseID INNER JOIN intake_workflow i on i.workflowID = p.workflowID where i.intakeCode = %s order by p.phaseOrder"
+    cursor.execute(getTasks, (_intakeId,))
+
+    # this will extract row headers
+    row_headers = [x[0] for x in cursor.description]
+    records = cursor.fetchall() 
+
+    json_data = []
+    for result in records:
+        json_data.append(dict(zip(row_headers, result)))
+
+    cursor.close()
+    db.close()
+
+    return json.dumps(json_data, default=str)
+
+# return set of dates for intake specific workflow
+@app.route("/intakeDates", methods=['GET'])
+def get_intake_dates():
+    db = mysql.connector.connect(
+        host="localhost",
+        user="root",
+        passwd="2247424yY",
+        database="intdatabase"
+    )
+
+    _intakeId = request.args.get('intakeId')
+    
+    cursor = db.cursor()
+    getTasks = "select * from intake_phase_duration WHERE intakeID = %s"
     cursor.execute(getTasks, (_intakeId,))
 
     # this will extract row headers
