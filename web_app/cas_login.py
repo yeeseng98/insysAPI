@@ -535,6 +535,7 @@ def get_workflow_list():
 # sends a list of existing form names
 @app.route("/getWorkflow", methods=['GET'])
 def get_workflow():
+
     db = mysql.connector.connect(
         host="localhost",
         user="root",
@@ -561,7 +562,9 @@ def get_workflow():
 
     return json.dumps(json_data, default=str)
 
+
  # sends phase info of selected workflow
+
 @app.route("/phaseData", methods=['GET'])
 def get_phases():
     db = mysql.connector.connect(
@@ -710,6 +713,186 @@ def get_intake_dates():
     db.close()
 
     return json.dumps(json_data, default=str)
+
+# FILE RELATED API CALLS
+# sends task info for a file task
+@app.route("/getFileTask", methods=['GET'])
+def get_file_tasks():
+    db = mysql.connector.connect(
+        host="localhost",
+        user="root",
+        passwd="2247424yY",
+        database="intdatabase"
+    )
+
+    _taskId = request.args.get('taskId')
+    
+    cursor = db.cursor()
+    getTasks = "select * from workflowphaseTasks WHERE taskID = %s AND taskType = 'file'"
+    cursor.execute(getTasks, (_taskId,))
+
+    # this will extract row headers
+    row_headers = [x[0] for x in cursor.description]
+    records = cursor.fetchall() 
+
+    json_data = []
+    for result in records:
+        json_data.append(dict(zip(row_headers, result)))
+
+    cursor.close()
+    db.close()
+
+    return json.dumps(json_data, default=str)
+
+# MEETING CONFIRMATION API CALLS
+# insert new meeting request
+@app.route("/newMeeting", methods=['POST'])
+def create_meeting():
+    db = mysql.connector.connect(
+        host="localhost",
+        user="root",
+        passwd="2247424yY",
+        database="intdatabase"
+    )
+
+    _json = request.json
+    _mentorId = _json['mentorId']
+    _studentId = _json['studentId']
+    _content = _json['content']
+
+    now = datetime.now()
+    cur = now.strftime('%Y-%m-%d %H:%M:%S')
+
+    cursor = db.cursor()
+    insertMeet = "INSERT INTO meeting_confirmation (studentID, mentorID, content, isApproved, dateCreated) VALUES (%s, %s, %s, %s, %s)"
+    meet = (_studentId, _mentorId, _content, 'PEND', cur)
+    cursor.execute(insertMeet, meet)
+
+    db.commit()
+
+    cursor.close()
+    db.close()
+
+    resp = jsonify('Request created successfully!')
+    resp.status_code = 200
+    return resp
+
+# sends a result of an existing meeting request
+@app.route("/checkRequest", methods=['GET'])
+def check_meet():
+    db = mysql.connector.connect(
+        host="localhost",
+        user="root",
+        passwd="2247424yY",
+        database="intdatabase"
+    )
+
+    _studentId = request.args.get('studentId')
+
+    cursor = db.cursor()
+    getName = "SELECT * FROM meeting_confirmation WHERE studentID = %s ORDER BY FIELD(isApproved, 'PEND') desc"
+    cursor.execute(getName, (_studentId,))
+
+    # this will extract row headers
+    row_headers = [x[0] for x in cursor.description]
+    records = cursor.fetchall()
+
+    json_data = []
+    for result in records:
+        json_data.append(dict(zip(row_headers, result)))
+
+    cursor.close()
+    db.close()
+
+    return json.dumps(json_data, default=str)
+
+# get all pending requests for a mentor
+@app.route("/getRequests", methods=['GET'])
+def get_requests():
+    db = mysql.connector.connect(
+        host="localhost",
+        user="root",
+        passwd="2247424yY",
+        database="intdatabase"
+    )
+
+    _mentorId = request.args.get('mentorId')
+
+    cursor = db.cursor()
+    getReq = "SELECT * FROM meeting_confirmation WHERE mentorId = %s AND isApproved = 'PEND' ORDER BY dateCreated asc"
+    cursor.execute(getReq, (_mentorId,))
+
+    # this will extract row headers
+    row_headers = [x[0] for x in cursor.description]
+    records = cursor.fetchall()
+
+    json_data = []
+    for result in records:
+        json_data.append(dict(zip(row_headers, result)))
+
+    cursor.close()
+    db.close()
+
+    return json.dumps(json_data, default=str)
+
+# approve a request
+@app.route("/approveRequest", methods=['GET'])
+def approve_req():
+    db = mysql.connector.connect(
+        host="localhost",
+        user="root",
+        passwd="2247424yY",
+        database="intdatabase"
+    )
+
+    _json = request.json
+    _studentId = _json['studentId']
+    _mentorId = _json['mentorId']
+
+    cursor = db.cursor()
+    sql = "UPDATE meeting_confirmation SET isApproved = 'APP' WHERE mentorId = %s AND studentId = %s AND isApproved = 'PEND'"
+    val = (_mentorId, _studentId)
+
+    cursor.execute(sql, val)
+
+    db.commit()
+
+    cursor.close()
+    db.close()
+
+    resp = jsonify('Approval status updated successfully!')
+    resp.status_code = 200
+    return resp
+
+# reject a request
+@app.route("/rejectRequest", methods=['GET'])
+def reject_req():
+    db = mysql.connector.connect(
+        host="localhost",
+        user="root",
+        passwd="2247424yY",
+        database="intdatabase"
+    )
+
+    _json = request.json
+    _studentId = _json['studentId']
+    _mentorId = _json['mentorId']
+    _rej = _json['rej']
+
+    cursor = db.cursor()
+    sql = "UPDATE meeting_confirmation SET isApproved = 'REJ', rejectComment = %s WHERE mentorId = %s AND studentId = %s AND isApproved = 'PEND'"
+    val = (_rej, _mentorId, _studentId)
+
+    cursor.execute(sql, val)
+
+    db.commit()
+
+    cursor.close()
+    db.close()
+
+    resp = jsonify('Rejection status updated successfully!')
+    resp.status_code = 200
+    return resp
 
 @app.route("/")
 def home():
