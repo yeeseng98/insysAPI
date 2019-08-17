@@ -153,6 +153,9 @@ def insert_form_value():
         cursor.execute(insert_sql, values)
         print("record is inserted")
     else:
+        print(_fieldVal)
+        print(_fieldName)
+        print(_taskId)
         update_sql = "UPDATE FormFieldSubmission SET value = %s WHERE fieldID = %s AND studentID = %s AND taskID = %s"
         values = (_fieldVal, _fieldName, _studentID, _taskId)
         cursor.execute(update_sql, values)
@@ -197,7 +200,7 @@ def record_submission():
         values = (_studentId, _taskId, cur)
         cursor.execute(insert_sql, values)
     else:
-        update_sql = "UPDATE FormFieldSubmission SET submissionTime = %s WHERE studentID = %s AND taskID = %s"
+        update_sql = "UPDATE submissionRecords SET submissionTime = %s WHERE studentID = %s AND taskID = %s"
         values = (cur, _studentId, _taskId)
         cursor.execute(update_sql, values)
 
@@ -790,7 +793,7 @@ def check_meet():
     _studentId = request.args.get('studentId')
 
     cursor = db.cursor()
-    getName = "SELECT * FROM meeting_confirmation WHERE studentID = %s ORDER BY FIELD(isApproved, 'PEND') desc"
+    getName = "SELECT * FROM meeting_confirmation WHERE studentID = %s ORDER BY FIELD(isApproved, 'PEND') desc, dateCreated desc"
     cursor.execute(getName, (_studentId,))
 
     # this will extract row headers
@@ -836,7 +839,7 @@ def get_requests():
     return json.dumps(json_data, default=str)
 
 # approve a request
-@app.route("/approveRequest", methods=['GET'])
+@app.route("/approveRequest", methods=['POST'])
 def approve_req():
     db = mysql.connector.connect(
         host="localhost",
@@ -865,7 +868,7 @@ def approve_req():
     return resp
 
 # reject a request
-@app.route("/rejectRequest", methods=['GET'])
+@app.route("/rejectRequest", methods=['POST'])
 def reject_req():
     db = mysql.connector.connect(
         host="localhost",
