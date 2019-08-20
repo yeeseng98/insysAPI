@@ -11,6 +11,7 @@ import mysql.connector
 MY_ADDRESS = 'TP041800@mail.apu.edu.my'
 PASSWORD = 'TP041800'
 
+
 def get_contacts():
     """
     Return two lists names, emails containing names and email addresses
@@ -19,7 +20,6 @@ def get_contacts():
 
     names = []
     emails = []
-
     db = mysql.connector.connect(
         host="localhost",
         user="root",
