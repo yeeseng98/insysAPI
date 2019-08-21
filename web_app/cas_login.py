@@ -1,8 +1,5 @@
 from random import SystemRandom
 from flask import Flask, request, redirect, session, url_for, flash, jsonify
-from requests_oauthlib import OAuth2Session
-import requests
-from jose import jwt
 import os
 from flask import render_template, url_for
 import mysql.connector
@@ -11,6 +8,8 @@ import json
 from flask_cors import CORS
 from datetime import datetime
 from werkzeug.datastructures import ImmutableMultiDict
+import io
+from flask import send_file
 
 random = SystemRandom()
 
@@ -1192,34 +1191,35 @@ def submit():
             cursor.close()
             db.close()
 
-@app.route('/fileSub', methods=['POST'])
-def submit():
+@app.route('/getFile', methods=['GET'])
+def getInternFile():
 
     try:
         db = mysql.connector.connect(
             host="localhost",
             user="root",
             passwd="2247424yY",
-            database="intdatabase"
+            database="intdatabase",
+            use_pure=True
         )
         
-        data = dict(request.form)
-        files = request.files['file']
-
-        content = files.read()
+        _fileName = request.args.get('fileName')
 
         cursor = db.cursor()
-        sql = "INSERT INTO fileSubmission (studentID, taskID, fileName, content) VALUES (%s, %s, %s, %s)"
-        val = (data['studentId'], data['taskId'], files.filename, content)
+        getReq = "SELECT * FROM fileSubmission WHERE fileName = %s"
+        cursor.execute(getReq, (_fileName,))
 
-        cursor.execute(sql, val)
+        record = cursor.fetchone()
 
-        db.commit()
+        name = record[2]
+        content = record[3]
+        file = io.BytesIO()
+        file.write(content)
+        file.seek(0)
+        
+        return send_file(file, attachment_filename=name, as_attachment=True)
 
-        resp = jsonify('File uploaded successfully!')
-        resp.status_code = 200
-        return resp
-
+        
     except mysql.connector.Error:
         print(cursor.statement)
         db.rollback()
