@@ -171,12 +171,10 @@ def insert_form_value():
             insert_sql = "INSERT INTO FormFieldSubmission (fieldID, studentID, value, taskID) VALUES (%s, %s, %s, %s)"
             values = (_fieldName, _studentID, _fieldVal, _taskId)
             cursor.execute(insert_sql, values)
-            print("record is inserted")
         else:
             update_sql = "UPDATE FormFieldSubmission SET value = %s WHERE fieldID = %s AND studentID = %s AND taskID = %s"
             values = (_fieldVal, _fieldName, _studentID, _taskId)
             cursor.execute(update_sql, values)
-            print("record is updated")
 
         db.commit()
 
@@ -1151,8 +1149,9 @@ def reject_req():
             cursor.close()
             db.close()
 
-@app.route('/fileSub', methods=['POST'])
-def submit():
+# Submit a file task
+@app.route('/fileTaskSub', methods=['POST'])
+def submit_file_task():
 
     try:
         db = mysql.connector.connect(
@@ -1168,10 +1167,24 @@ def submit():
         content = files.read()
 
         cursor = db.cursor()
-        sql = "INSERT INTO fileSubmission (studentID, taskID, fileName, content) VALUES (%s, %s, %s, %s)"
-        val = (data['studentId'], data['taskId'], files.filename, content)
 
-        cursor.execute(sql, val)
+        check_existing = "SELECT * FROM fileSubmission WHERE taskID = %s && studentID = %s"
+        check_values = (data['taskId'], data['studentId'])
+        cursor.execute(check_existing, check_values)
+
+        row_count = cursor.rowcount
+
+        print("number of found rows: {}".format(row_count))
+        if row_count == 0:
+            sql = "INSERT INTO fileSubmission (studentID, taskID, fileName, content) VALUES (%s, %s, %s, %s)"
+            val = (data['studentId'], data['taskId'], files.filename, content)
+
+            cursor.execute(sql, val)
+        else:
+            sql = "UPDATE fileSubmission SET fileName = %s, content = %s WHERE studentID = %s AND taskId = %s"
+            val = (files.filename, content, data['studentId'], data['taskId'])
+
+            cursor.execute(sql, val)
 
         db.commit()
 
@@ -1191,8 +1204,65 @@ def submit():
             cursor.close()
             db.close()
 
-@app.route('/getFile', methods=['GET'])
-def getInternFile():
+# Submit a FORM based file 
+@app.route('/formFileSub', methods=['POST'])
+def submit_form_file():
+
+    try:
+        db = mysql.connector.connect(
+            host="localhost",
+            user="root",
+            passwd="2247424yY",
+            database="intdatabase",
+            use_pure=True
+        )
+
+        data = dict(request.form)
+        files = request.files['file']
+
+        content = files.read()
+
+        cursor = db.cursor(buffered=True, dictionary=True)
+
+        check_existing = "SELECT * FROM fileSubmission WHERE taskID = %s AND studentID = %s AND formatID = %s"
+        check_values = (data['taskId'], data['studentId'], data['formatId'])
+        cursor.execute(check_existing, check_values)
+
+        row_count = cursor.rowcount
+
+        print("number of found rows: {}".format(row_count))
+        if row_count == 0:
+            sql = "INSERT INTO fileSubmission (studentID, taskID, fileName, content, formatID) VALUES (%s, %s, %s, %s, %s)"
+            val = (data['studentId'], data['taskId'], files.filename, content, data['formatId'])
+
+            cursor.execute(sql, val)
+        else:
+            sql = "UPDATE fileSubmission SET fileName = %s, content = %s WHERE studentID = %s AND taskID = %s AND formatID = %s"
+            val = (files.filename, content, data['studentId'], data['taskId'], data['formatId'])
+
+            cursor.execute(sql, val)
+
+        db.commit()
+
+        resp = jsonify('File uploaded successfully!')
+        resp.status_code = 200
+        return resp
+
+    except mysql.connector.Error:
+        print(cursor.statement)
+        db.rollback()
+        resp = jsonify('Something went wrong!')
+        resp.status_code = 500
+        return resp
+        
+    finally:
+        if (db.is_connected()):
+            cursor.close()
+            db.close()
+
+# get existing form-based filename based on studentTP, taskId and formId
+@app.route('/getFormFile', methods=['GET'])
+def get_form_file():
 
     try:
         db = mysql.connector.connect(
@@ -1203,23 +1273,153 @@ def getInternFile():
             use_pure=True
         )
         
-        _fileName = request.args.get('fileName')
+        _formatId = request.args.get('formatId')
+        _studentId = request.args.get('studentId')
+        _taskId = request.args.get('taskId')
 
         cursor = db.cursor()
-        getReq = "SELECT * FROM fileSubmission WHERE fileName = %s"
-        cursor.execute(getReq, (_fileName,))
+        getReq = "SELECT fileName FROM fileSubmission WHERE studentID = %s AND taskID = %s AND formatID = %s"
+        val = (_studentId, _taskId, _formatId)
+        cursor.execute(getReq, val)
 
-        record = cursor.fetchone()
+        row_headers = [x[0] for x in cursor.description]
+        records = cursor.fetchall()
 
-        name = record[2]
-        content = record[3]
-        file = io.BytesIO()
-        file.write(content)
-        file.seek(0)
+        json_data = []
+        for result in records:
+            json_data.append(dict(zip(row_headers, result)))
+
+        return json.dumps(json_data, default=str)
         
-        return send_file(file, attachment_filename=name, as_attachment=True)
+    except mysql.connector.Error:
+        print(cursor.statement)
+        db.rollback()
+        resp = jsonify('Something went wrong!')
+        resp.status_code = 500
+        return resp
+        
+    finally:
+        if (db.is_connected()):
+            cursor.close()
+            db.close()
+
+# get existing task-based filename based on studentTP, taskId and formId
+@app.route('/getTaskFile', methods=['GET'])
+def get_task_file():
+
+    try:
+        db = mysql.connector.connect(
+            host="localhost",
+            user="root",
+            passwd="2247424yY",
+            database="intdatabase",
+            use_pure=True
+        )
+        
+        _studentId = request.args.get('studentId')
+        _taskId = request.args.get('taskId')
+
+        cursor = db.cursor()
+        getReq = "SELECT fileName FROM fileSubmission WHERE studentID = %s AND taskID = %s"
+        val = (_studentId, _taskId)
+        cursor.execute(getReq, val)
+
+        row_headers = [x[0] for x in cursor.description]
+        records = cursor.fetchall()
+
+        json_data = []
+        for result in records:
+            json_data.append(dict(zip(row_headers, result)))
+
+        return json.dumps(json_data, default=str)
+        
+    except mysql.connector.Error:
+        print(cursor.statement)
+        db.rollback()
+        resp = jsonify('Something went wrong!')
+        resp.status_code = 500
+        return resp
+        
+    finally:
+        if (db.is_connected()):
+            cursor.close()
+            db.close()
+
+# get list of existing resource names based on faculty
+@app.route('/getFileList', methods=['GET'])
+def getFileList():
+
+    try:
+        db = mysql.connector.connect(
+            host="localhost",
+            user="root",
+            passwd="2247424yY",
+            database="intdatabase",
+            use_pure=True
+        )
+        
+        _faculty = request.args.get('facultyId')
+        
+        cursor = db.cursor()
+        if _faculty is not None:
+            getReq = "select fileID, fileName, targetFaculty from internResources where targetFaculty=%s or targetFaculty='All' order by targetFaculty asc"
+        else:
+            getReq = "select fileID, fileName, targetFaculty from internResources where targetFaculty='All' order by targetFaculty asc"
+
+        cursor.execute(getReq, (_faculty,))
+
+        # this will extract row headers
+        row_headers = [x[0] for x in cursor.description]
+        records = cursor.fetchall()
+
+        json_data = []
+        for result in records:
+            json_data.append(dict(zip(row_headers, result)))
+
+        return json.dumps(json_data, default=str)
 
         
+    except mysql.connector.Error:
+        print(cursor.statement)
+        db.rollback()
+        resp = jsonify('Something went wrong!')
+        resp.status_code = 500
+        return resp
+        
+    finally:
+        if (db.is_connected()):
+            cursor.close()
+            db.close()
+
+# insert a new internship resource
+@app.route('/insertResource', methods=['POST'])
+def insert_resource():
+
+    try:
+        db = mysql.connector.connect(
+            host="localhost",
+            user="root",
+            passwd="2247424yY",
+            database="intdatabase"
+        )
+
+        data = dict(request.form)
+        files = request.files['file']
+
+        content = files.read()
+
+        cursor = db.cursor()
+        sql = "INSERT INTO internResources (fileName, targetFaculty, content) VALUES (%s, %s, %s)"
+        val = (files.filename, data['tFaculty'], content)
+
+        cursor.execute(sql, val)
+
+        db.commit()
+
+        resp = jsonify('Resource uploaded successfully!')
+        resp.status_code = 200
+        return resp
+
     except mysql.connector.Error:
         print(cursor.statement)
         db.rollback()
