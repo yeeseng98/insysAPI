@@ -1149,6 +1149,7 @@ def reject_req():
             cursor.close()
             db.close()
 
+# FILE API CALLS
 # Submit a file task
 @app.route('/fileTaskSub', methods=['POST'])
 def submit_file_task():
@@ -1427,6 +1428,43 @@ def insert_resource():
         resp.status_code = 500
         return resp
         
+    finally:
+        if (db.is_connected()):
+            cursor.close()
+            db.close()
+
+# download a file
+@app.route('/getFile', methods=['GET'])
+def getInternFile():
+    try:
+        db = mysql.connector.connect(
+            host="localhost",
+            user="root",
+            passwd="2247424yY",
+            database="intdatabase",
+            use_pure=True
+        )
+
+        _fileID = request.args.get('fileId')
+
+        cursor = db.cursor()
+
+        getReq = "SELECT * FROM internResources WHERE fileID = %s"
+        cursor.execute(getReq, (_fileID,))
+
+        record = cursor.fetchone()
+        name = record[1]
+        content = record[3]
+        file = io.BytesIO()
+        file.write(content)
+        file.seek(0)
+
+        return send_file(file, attachment_filename=name, as_attachment=True)
+
+    except mysql.connector.Error:
+        print(cursor.statement)
+        db.rollback()
+
     finally:
         if (db.is_connected()):
             cursor.close()
