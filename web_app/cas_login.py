@@ -117,16 +117,13 @@ def get_form():
         sql = ("SELECT formatID, name, type, if(required=1,'true','false') as required, display, if(selected=1,'true','false') as selected, title FROM FormFormat WHERE formID=%s")
 
         cursor.execute(sql, (_fieldId,))
-        # row_headers=[x[0] for x in cursor.description] #this will extract row headers
         records = dictfetchall(cursor)
-        # json_data=[]
         for result in records:
             cursor.execute(
                 "select `key`,label from optionsTable o, (SELECT formatID from formformat where `type`='select' OR `type`='multi') a where o.fieldID = a.formatID AND o.fieldID = '" + result['formatID'] + "'")
             row = dictfetchall(cursor)
             if row is not None:
                 result['options'] = row
-            # json_data.append(dict(zip(row_headers,result)))
 
         return json.dumps(records)
 
@@ -194,7 +191,7 @@ def insert_form_value():
             cursor.close()
             db.close()
 
-# insert user input form data
+# insert user input form data and record the submission time
 @app.route('/recordSubmission', methods=['POST'])
 def record_submission():
     try:
@@ -234,6 +231,45 @@ def record_submission():
         resp = jsonify('Submission is recorded successfully!')
         resp.status_code = 200
         return resp
+
+    except mysql.connector.Error:
+        print(cursor.statement)
+        db.rollback()
+        resp = jsonify('Something went wrong!')
+        resp.status_code = 500
+        return resp
+        
+    finally:
+        if (db.is_connected()):
+            cursor.close()
+            db.close()
+
+# fetch completion status of student's task submission
+@app.route('/getTaskCompletion', methods=['GET'])
+def get_task_completion():
+    try:
+        db = mysql.connector.connect(
+            host="localhost",
+            user="root",
+            passwd="2247424yY",
+            database="intdatabase"
+        )
+
+        _studentId = request.args.get('studentId')
+
+        cursor = db.cursor(buffered=True)
+        sql = ("SELECT taskID from submissionRecords where studentID = %s")
+
+        cursor.execute(sql, (_studentId,))
+
+        row_headers = [x[0] for x in cursor.description]
+        records = cursor.fetchall()
+
+        json_data = []
+        for result in records:
+            json_data.append(dict(zip(row_headers, result)))
+
+        return json.dumps(json_data)
 
     except mysql.connector.Error:
         print(cursor.statement)
@@ -1159,7 +1195,8 @@ def submit_file_task():
             host="localhost",
             user="root",
             passwd="2247424yY",
-            database="intdatabase"
+            database="intdatabase",
+            use_pure=True
         )
 
         data = dict(request.form)
@@ -1167,15 +1204,15 @@ def submit_file_task():
 
         content = files.read()
 
-        cursor = db.cursor()
+        cursor = db.cursor(buffered=True, dictionary=True)
 
-        check_existing = "SELECT * FROM fileSubmission WHERE taskID = %s && studentID = %s"
+        check_existing = "SELECT * FROM fileSubmission WHERE taskID = %s AND studentID = %s"
         check_values = (data['taskId'], data['studentId'])
         cursor.execute(check_existing, check_values)
 
         row_count = cursor.rowcount
 
-        print("number of found rows: {}".format(row_count))
+        print("number of found rows for file submission: {}".format(row_count))
         if row_count == 0:
             sql = "INSERT INTO fileSubmission (studentID, taskID, fileName, content) VALUES (%s, %s, %s, %s)"
             val = (data['studentId'], data['taskId'], files.filename, content)
@@ -1205,7 +1242,7 @@ def submit_file_task():
             cursor.close()
             db.close()
 
-# Submit a FORM based file 
+# Submit a file as input from a form based task 
 @app.route('/formFileSub', methods=['POST'])
 def submit_form_file():
 
