@@ -1507,47 +1507,157 @@ def getInternFile():
             cursor.close()
             db.close()
 
-# @app.route('/fileSub', methods=['GET','POST'])
-# def submit():
-#     if request.method == 'POST':
-#         if 'file' not in request.files:
-#             flash('No file part')
-#             return redirect(request.url)
-#         file = request.files['file']
-#         content = request.files['file'].read()
+# delete internship resource
+@app.route('/deleteResource', methods=['POST'])
+def delete_resource():
+    try:
+        db = mysql.connector.connect(
+            host="localhost",
+            user="root",
+            passwd="2247424yY",
+            database="intdatabase"
+        )
 
-#         if file.filename == '':
-#             flash('No file selected for uploading')
-#             return redirect(request.url)
+        _json = request.json
+        _fileId = _json['fileId']
+        cursor = db.cursor()
+        sql = "DELETE FROM internResources WHERE fileID = %s"
 
-#         if file and allowed_file(file.filename):
-#             filename = secure_filename(file.filename)
-#             try:
-#                 cursor = db.cursor()
+        cursor.execute(sql, (_fileId,))
 
-#                 query = """INSERT INTO fileTable (fileName, content) VALUES
-#                 (%s,%s)"""
+        db.commit()
 
-#                 subFile = (filename, content)
+        resp = jsonify('File deleted successfully!')
+        resp.status_code = 200
+        return resp
 
-#                 result = cursor.execute(query, subFile)
+    except mysql.connector.Error:
+        print(cursor.statement)
+        db.rollback()
+        resp = jsonify('Something went wrong!')
+        resp.status_code = 500
+        return resp
 
-#                 db.commit()
-#                 print ("Image and file inserted successfully as a BLOB into fileTable table", result)
-#             except mysql.connector.Error as error :
-#                 print(cursor.statement)
-#                 db.rollback()
-#             finally:
-#                 # closing database connection.
-#                 if(db.is_connected()):
-#                     cursor.close()
-#                     db.close()
-#             flash('File successfully uploaded')
-#             return redirect('/')
+    finally:
+        if (db.is_connected()):
+            cursor.close()
+            db.close()
 
-#         else:
-#             flash('Allowed file types are txt, pdf, png, jpg, jpeg, gif','docx')
-#             return redirect(request.url)
+# AUTHORITY RELATED API CALLS
+# get accessible pages based on user role
+@app.route("/getUserAccess", methods=['GET'])
+def get_user_access():
+
+    try:
+        db = mysql.connector.connect(
+            host="localhost",
+            user="root",
+            passwd="2247424yY",
+            database="intdatabase"
+        )
+
+        _userRole = '%' + request.args.get('userRole') + '%'
+        cursor = db.cursor()
+        getPages = "SELECT * FROM access_authority WHERE accessedBy LIKE %s ORDER BY orderNum"
+        cursor.execute(getPages, (_userRole,))
+
+        # this will extract row headers
+        row_headers = [x[0] for x in cursor.description]
+        records = cursor.fetchall()
+
+        json_data = []
+        for result in records:
+            json_data.append(dict(zip(row_headers, result)))
+
+        return json.dumps(json_data, default=str)
+
+    except mysql.connector.Error:
+        print(cursor.statement)
+        db.rollback()
+        resp = jsonify('Something went wrong!')
+        resp.status_code = 500
+        return resp
+        
+    finally:
+        if (db.is_connected()):
+            cursor.close()
+            db.close()
+
+# get pages with modifiable accessibility
+@app.route("/getModPages", methods=['GET'])
+def get_mod_pages():
+
+    try:
+        db = mysql.connector.connect(
+            host="localhost",
+            user="root",
+            passwd="2247424yY",
+            database="intdatabase"
+        )
+
+        cursor = db.cursor()
+        getPages = "SELECT * FROM access_authority WHERE isEditable = 'Y' ORDER BY pageID"
+        cursor.execute(getPages)
+
+        # this will extract row headers
+        row_headers = [x[0] for x in cursor.description]
+        records = cursor.fetchall()
+
+        json_data = []
+        for result in records:
+            json_data.append(dict(zip(row_headers, result)))
+
+        return json.dumps(json_data, default=str)
+
+    except mysql.connector.Error:
+        print(cursor.statement)
+        db.rollback()
+        resp = jsonify('Something went wrong!')
+        resp.status_code = 500
+        return resp
+        
+    finally:
+        if (db.is_connected()):
+            cursor.close()
+            db.close()
+
+# update page accessibility
+@app.route('/changeAccess', methods=['POST'])
+def change_access():
+    try:
+        db = mysql.connector.connect(
+            host="localhost",
+            user="root",
+            passwd="2247424yY",
+            database="intdatabase"
+        )
+
+        _json = request.json
+        _pageId = _json['pageId']
+        _value = _json['value']
+        cursor = db.cursor()
+        sql = "UPDATE access_authority SET accessedBy = %s WHERE pageID = %s"
+        val = (_value, _pageId)
+
+        cursor.execute(sql, val)
+
+        db.commit()
+
+        resp = jsonify('Access updated successfully!')
+        resp.status_code = 200
+        return resp
+
+    except mysql.connector.Error:
+        print(cursor.statement)
+        db.rollback()
+        resp = jsonify('Something went wrong!')
+        resp.status_code = 500
+        return resp
+
+    finally:
+        if (db.is_connected()):
+            cursor.close()
+            db.close()
 
 @app.route("/")
 def home():
