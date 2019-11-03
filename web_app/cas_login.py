@@ -1127,6 +1127,12 @@ def approve_req():
         cursor.execute(sql, val)
 
         db.commit()
+        
+        sql = "UPDATE int_student SET isApprovedMeeting = 'Y' WHERE studentId = %s"
+
+        cursor.execute(sql, (_studentId,))
+
+        db.commit()
 
         resp = jsonify('Approval status updated successfully!')
         resp.status_code = 200
@@ -1654,6 +1660,49 @@ def change_access():
         resp.status_code = 500
         return resp
 
+    finally:
+        if (db.is_connected()):
+            cursor.close()
+            db.close()
+
+# STUDENT INFORMATION RELATED API CALLS
+# insert new student internship record after signing declaration
+@app.route('/confirmDeclaration', methods=['POST'])
+def declare_new_student():
+    try:
+        db = mysql.connector.connect(
+            host="localhost",
+            user="root",
+            passwd="2247424yY",
+            database="intdatabase"
+        )
+
+        _json = request.json
+        _studentId = _json['studentId']
+        _studentName = _json['studentName']
+        _intake = _json['intake']
+
+        now = datetime.now()
+        cur = now.strftime('%Y-%m-%d %H:%M:%S')
+
+        cursor = db.cursor()
+        sql = "INSERT INTO int_student (studentID, studentName, intake, isExtended, extensionDate, isApprovedCompany, isApprovedMeeting, companyID, companyName, dateSigned) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"
+        val = (_studentId, _studentName, _intake, 'N', '', 'N', 'N', '', '', cur)
+        cursor.execute(sql, val)
+
+        db.commit()
+
+        resp = jsonify('Request created successfully!')
+        resp.status_code = 200
+        return resp
+
+    except mysql.connector.Error:
+        print(cursor.statement)
+        db.rollback()
+        resp = jsonify('Something went wrong!')
+        resp.status_code = 500
+        return resp
+        
     finally:
         if (db.is_connected()):
             cursor.close()
