@@ -1708,6 +1708,50 @@ def declare_new_student():
             cursor.close()
             db.close()
 
+# Checks if a student is registered in the database. 
+@app.route('/checkStudentExist', methods=['GET'])
+def chk_student_existence():
+
+    try:
+        db = mysql.connector.connect(
+            host="localhost",
+            user="root",
+            passwd="2247424yY",
+            database="intdatabase"
+        )
+
+        _studentId = request.args.get('studentId')
+
+        cursor = db.cursor()
+        getStudent = "SELECT studentID FROM int_student WHERE studentID = %s"
+        cursor.execute(getStudent, (_studentId,))
+        cursor.fetchall()
+
+        row_count = cursor.rowcount
+        print(cursor.statement)
+
+        print("number of found rows for student: {}".format(row_count))
+        if row_count == 0:
+            resp = jsonify('This student has not registered.')
+            resp.status_code = 204
+            return resp
+        else:
+            resp = jsonify('The student exists in the database.')
+            resp.status_code = 200
+            return resp
+
+    except mysql.connector.Error:
+        print(cursor.statement)
+        db.rollback()
+        resp = jsonify('Something went wrong!')
+        resp.status_code = 500
+        return resp
+        
+    finally:
+        if (db.is_connected()):
+            cursor.close()
+            db.close()
+
 @app.route("/")
 def home():
     return render_template("admin/admin_copy.html")
