@@ -1686,8 +1686,8 @@ def declare_new_student():
         cur = now.strftime('%Y-%m-%d %H:%M:%S')
 
         cursor = db.cursor()
-        sql = "INSERT INTO int_student (studentID, studentName, intake, isExtended, extensionDate, isApprovedCompany, isApprovedMeeting, companyID, companyName, dateSigned) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"
-        val = (_studentId, _studentName, _intake, 'N', '', 'N', 'N', '', '', cur)
+        sql = "INSERT INTO int_student (studentID, studentName, intake, isExtended, extensionDate, isApprovedCompany, isApprovedMeeting, companyID, companyName, dateSigned, internshipStatus) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"
+        val = (_studentId, _studentName, _intake, 'N', '', 'N', 'N', '', '', cur, 'Active')
         cursor.execute(sql, val)
 
         db.commit()
@@ -1739,6 +1739,46 @@ def chk_student_existence():
             resp = jsonify('The student exists in the database.')
             resp.status_code = 200
             return resp
+
+    except mysql.connector.Error:
+        print(cursor.statement)
+        db.rollback()
+        resp = jsonify('Something went wrong!')
+        resp.status_code = 500
+        return resp
+        
+    finally:
+        if (db.is_connected()):
+            cursor.close()
+            db.close()
+
+# get a student profile with student ID
+@app.route("/getStudent", methods=['GET'])
+def get_student():
+
+    try:
+        db = mysql.connector.connect(
+            host="localhost",
+            user="root",
+            passwd="2247424yY",
+            database="intdatabase"
+        )
+        
+        _studentId = request.args.get('studentId')
+
+        cursor = db.cursor()
+        sql = "SELECT * FROM int_student a LEFT JOIN intake_workflow b on a.intake = b.intakeCode WHERE studentID = %s"
+        cursor.execute(sql, (_studentId,))
+
+        # this will extract row headers
+        row_headers = [x[0] for x in cursor.description]
+        records = cursor.fetchall()
+
+        json_data = []
+        for result in records:
+            json_data.append(dict(zip(row_headers, result)))
+
+        return json.dumps(json_data, default=str)
 
     except mysql.connector.Error:
         print(cursor.statement)
