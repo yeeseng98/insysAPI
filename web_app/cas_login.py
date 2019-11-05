@@ -1080,7 +1080,7 @@ def get_requests():
         _mentorId = request.args.get('mentorId')
 
         cursor = db.cursor()
-        getReq = "SELECT * FROM meeting_confirmation WHERE mentorId = %s AND isApproved = 'PEND' ORDER BY dateCreated asc"
+        getReq = "SELECT i.studentName, mc.* FROM meeting_confirmation as mc INNER JOIN int_student as i on mc.studentID = i.studentID WHERE mc.mentorId = %s AND mc.isApproved = 'PEND' ORDER BY mc.dateCreated asc;"
         cursor.execute(getReq, (_mentorId,))
 
         # this will extract row headers
@@ -1779,6 +1779,47 @@ def get_student():
             json_data.append(dict(zip(row_headers, result)))
 
         return json.dumps(json_data, default=str)
+
+    except mysql.connector.Error:
+        print(cursor.statement)
+        db.rollback()
+        resp = jsonify('Something went wrong!')
+        resp.status_code = 500
+        return resp
+        
+    finally:
+        if (db.is_connected()):
+            cursor.close()
+            db.close()
+
+# update a student's extension status and date
+@app.route("/extendInternship", methods=['POST'])
+def extend_internship():
+    try:
+        db = mysql.connector.connect(
+            host="localhost",
+            user="root",
+            passwd="2247424yY",
+            database="intdatabase"
+        )
+
+        _json = request.json
+        _studentId = _json['studentId']
+        _endDate = _json['endDate']
+
+        cursor = db.cursor()
+
+        sql = "UPDATE int_student SET isExtended = 'Y', extensionDate = %s WHERE studentID = %s"
+        val = (_endDate, _studentId)
+
+        cursor.execute(sql, val)
+        print(cursor.statement)
+
+        db.commit()
+
+        resp = jsonify('Extension status updated successfully!')
+        resp.status_code = 200
+        return resp
 
     except mysql.connector.Error:
         print(cursor.statement)
