@@ -985,7 +985,7 @@ def get_file_tasks():
             db.close()
 
 # MEETING CONFIRMATION API CALLS
-# insert new meeting request
+# insert new discussion content request
 @app.route("/newMeeting", methods=['POST'])
 def create_meeting():
     try:
@@ -1027,7 +1027,7 @@ def create_meeting():
             cursor.close()
             db.close()
 
-# sends a result of an existing meeting request
+# checks if a discussion content request exists, returns the record if it does
 @app.route("/checkRequest", methods=['GET'])
 def check_meet():
     try:
@@ -1066,7 +1066,7 @@ def check_meet():
             cursor.close()
             db.close()
 
-# get all pending requests for a mentor
+# get all pending discussion content requests for a mentor
 @app.route("/getRequests", methods=['GET'])
 def get_requests():
     try:
@@ -1105,7 +1105,7 @@ def get_requests():
             cursor.close()
             db.close()
 
-# approve a request
+# approve a discussion content request
 @app.route("/approveRequest", methods=['POST'])
 def approve_req():
     try:
@@ -1151,7 +1151,7 @@ def approve_req():
             db.close()
 
 
-# reject a request
+# reject a discussion content request
 @app.route("/rejectRequest", methods=['POST'])
 def reject_req():
     try:
@@ -1170,6 +1170,217 @@ def reject_req():
         cursor = db.cursor()
         sql = "UPDATE meeting_confirmation SET isApproved = 'REJ', rejectComment = %s WHERE mentorId = %s AND studentId = %s AND isApproved = 'PEND'"
         val = (_rej, _mentorId, _studentId)
+
+        cursor.execute(sql, val)
+
+        db.commit()
+
+        resp = jsonify('Rejection status updated successfully!')
+        resp.status_code = 200
+        return resp
+
+    except mysql.connector.Error:
+        print(cursor.statement)
+        db.rollback()
+        resp = jsonify('Something went wrong!')
+        resp.status_code = 500
+        return resp
+        
+    finally:
+        if (db.is_connected()):
+            cursor.close()
+            db.close()
+
+# insert new company application request
+@app.route("/postInternshipRequest", methods=['POST'])
+def create_com_app():
+    try:
+        db = mysql.connector.connect(
+            host="localhost",
+            user="root",
+            passwd="2247424yY",
+            database="intdatabase"
+        )
+
+        _json = request.json
+        _mentorId = _json['mentorId']
+        _studentId = _json['studentId']
+        _companyID = _json['companyID']
+
+        now = datetime.now()
+        cur = now.strftime('%Y-%m-%d %H:%M:%S')
+
+        cursor = db.cursor()
+        insertMeet = "INSERT INTO company_approval_requests (studentID, mentorID, companyID, isApproved, dateCreated) VALUES (%s, %s, %s, %s, %s)"
+        meet = (_studentId, _mentorId, _companyID, 'PEND', cur)
+        cursor.execute(insertMeet, meet)
+
+        db.commit()
+
+        resp = jsonify('Request created successfully!')
+        resp.status_code = 200
+        return resp
+
+    except mysql.connector.Error:
+        print(cursor.statement)
+        db.rollback()
+        resp = jsonify('Something went wrong!')
+        resp.status_code = 500
+        return resp
+        
+    finally:
+        if (db.is_connected()):
+            cursor.close()
+            db.close()
+
+# get all pending company application requests for a mentor
+@app.route("/getCompanyRequests", methods=['GET'])
+def get_com_requests():
+    try:
+        db = mysql.connector.connect(
+            host="localhost",
+            user="root",
+            passwd="2247424yY",
+            database="intdatabase"
+        )
+
+        _mentorId = request.args.get('mentorId')
+
+        cursor = db.cursor()
+        getReq = "SELECT i.studentName, ca.* FROM company_approval_requests as ca INNER JOIN int_student as i on ca.studentID = i.studentID WHERE ca.mentorId = %s AND ca.isApproved = 'PEND' ORDER BY ca.dateCreated asc;"
+        cursor.execute(getReq, (_mentorId,))
+
+        # this will extract row headers
+        row_headers = [x[0] for x in cursor.description]
+        records = cursor.fetchall()
+
+        json_data = []
+        for result in records:
+            json_data.append(dict(zip(row_headers, result)))
+
+        return json.dumps(json_data, default=str)
+
+    except mysql.connector.Error:
+        print(cursor.statement)
+        db.rollback()
+        resp = jsonify('Something went wrong!')
+        resp.status_code = 500
+        return resp
+        
+    finally:
+        if (db.is_connected()):
+            cursor.close()
+            db.close()
+
+# checks if a discussion content request exists, returns the record if it does
+@app.route("/checkCompanyRequests", methods=['GET'])
+def check_com_req():
+    try:
+        db = mysql.connector.connect(
+            host="localhost",
+            user="root",
+            passwd="2247424yY",
+            database="intdatabase"
+        )
+
+        _studentId = request.args.get('studentId')
+
+        cursor = db.cursor()
+        getName = "SELECT * FROM company_approval_requests WHERE studentID = %s AND isApproved = 'PEND'"
+        cursor.execute(getName, (_studentId,))
+        cursor.fetchall()
+
+        row_count = cursor.rowcount
+
+        print("number of found rows for student: {}".format(row_count))
+        if row_count == 0:
+            resp = jsonify('Student has no pending application.')
+            resp.status_code = 204
+            return resp
+        else:
+            resp = jsonify('Student has a pending application.')
+            resp.status_code = 200
+            return resp
+
+    except mysql.connector.Error:
+        print(cursor.statement)
+        db.rollback()
+        resp = jsonify('Something went wrong!')
+        resp.status_code = 500
+        return resp
+        
+    finally:
+        if (db.is_connected()):
+            cursor.close()
+            db.close()
+
+# approve a discussion content request
+@app.route("/approveCompanyApplication", methods=['POST'])
+def approve_com_app():
+    try:
+        db = mysql.connector.connect(
+            host="localhost",
+            user="root",
+            passwd="2247424yY",
+            database="intdatabase"
+        )
+
+        _json = request.json
+        _studentId = _json['studentId']
+        _mentorId = _json['mentorId']
+        _companyId = _json['companyId']
+
+        cursor = db.cursor()
+        sql = "UPDATE company_approval_requests SET isApproved = 'APP' WHERE mentorId = %s AND studentId = %s AND companyId = %s AND isApproved = 'PEND'"
+        val = (_mentorId, _studentId, _companyId)
+
+        cursor.execute(sql, val)
+
+        db.commit()
+        
+        sql = "UPDATE int_student SET isApprovedCompany = 'Y' WHERE studentId = %s"
+
+        cursor.execute(sql, (_studentId,))
+
+        db.commit()
+
+        resp = jsonify('Approval status updated successfully!')
+        resp.status_code = 200
+        return resp
+
+    except mysql.connector.Error:
+        print(cursor.statement)
+        db.rollback()
+        resp = jsonify('Something went wrong!')
+        resp.status_code = 500
+        return resp
+        
+    finally:
+        if (db.is_connected()):
+            cursor.close()
+            db.close()
+
+
+# reject a discussion content request
+@app.route("/rejectCompanyApplication", methods=['POST'])
+def reject_com_app():
+    try:
+        db = mysql.connector.connect(
+            host="localhost",
+            user="root",
+            passwd="2247424yY",
+            database="intdatabase"
+        )
+
+        _json = request.json
+        _studentId = _json['studentId']
+        _mentorId = _json['mentorId']
+        _companyId = _json['companyId']
+        _rej = _json['rej']
+
+        cursor = db.cursor()
+        sql = "UPDATE company_approval_requests SET isApproved = 'REJ', rejectComment = %s WHERE mentorId = %s AND studentId = %s AND companyId = %s AND isApproved = 'PEND'"
+        val = (_rej, _mentorId, _studentId, _companyId)
 
         cursor.execute(sql, val)
 
@@ -1728,7 +1939,6 @@ def chk_student_existence():
         cursor.fetchall()
 
         row_count = cursor.rowcount
-        print(cursor.statement)
 
         print("number of found rows for student: {}".format(row_count))
         if row_count == 0:
