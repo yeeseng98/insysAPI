@@ -668,7 +668,7 @@ def sub_tasks():
             cursor.close()
             db.close()
 
-# sends a list of existing form names
+# sends a list of existing workflow names
 @app.route("/workflowList", methods=['GET'])
 def get_workflow_list():
     try:
@@ -705,7 +705,7 @@ def get_workflow_list():
             cursor.close()
             db.close()
 
-# sends a list of existing form names
+# returns workflow details based on workflowId
 @app.route("/getWorkflow", methods=['GET'])
 def get_workflow():
 
@@ -923,6 +923,82 @@ def get_intake_dates():
         cursor.execute(getTasks, (_intakeId,))
 
         # this will extract row headers
+        row_headers = [x[0] for x in cursor.description]
+        records = cursor.fetchall()
+
+        json_data = []
+        for result in records:
+            json_data.append(dict(zip(row_headers, result)))
+
+        return json.dumps(json_data, default=str)
+
+    except mysql.connector.Error:
+        print(cursor.statement)
+        db.rollback()
+        resp = jsonify('Something went wrong!')
+        resp.status_code = 500
+        return resp
+        
+    finally:
+        if (db.is_connected()):
+            cursor.close()
+            db.close()
+
+# gets a workflow assigned to the intake parameter
+@app.route("/getIntakeToWorkflow", methods=['GET'])
+def get_intake_to_workflow():
+    try:
+        db = mysql.connector.connect(
+            host="localhost",
+            user="root",
+            passwd="2247424yY",
+            database="intdatabase"
+        )
+
+        _intakeId = request.args.get('intakeId')
+
+        cursor = db.cursor()
+        sql = "select * from workflow w INNER JOIN intake_workflow iw on w.workflowID = iw.workflowID where iw.intakeCode = %s"
+        cursor.execute(sql, (_intakeId,))
+
+        row_headers = [x[0] for x in cursor.description]
+        records = cursor.fetchall()
+
+        json_data = []
+        for result in records:
+            json_data.append(dict(zip(row_headers, result)))
+
+        return json.dumps(json_data, default=str)
+
+    except mysql.connector.Error:
+        print(cursor.statement)
+        db.rollback()
+        resp = jsonify('Something went wrong!')
+        resp.status_code = 500
+        return resp
+        
+    finally:
+        if (db.is_connected()):
+            cursor.close()
+            db.close()
+
+# gets a workflow assigned to the intake parameter
+@app.route("/getWorkflowToIntakes", methods=['GET'])
+def get_workflow_to_intakes():
+    try:
+        db = mysql.connector.connect(
+            host="localhost",
+            user="root",
+            passwd="2247424yY",
+            database="intdatabase"
+        )
+
+        _workflowId = request.args.get('workflowId')
+
+        cursor = db.cursor()
+        sql = "select * from workflow w INNER JOIN intake_workflow iw on w.workflowID = iw.workflowID where iw.workflowID = %s"
+        cursor.execute(sql, (_workflowId,))
+
         row_headers = [x[0] for x in cursor.description]
         records = cursor.fetchall()
 
