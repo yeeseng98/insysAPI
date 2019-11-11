@@ -114,7 +114,7 @@ def get_form():
         cursor = db.cursor()
         db.row_factory = dictfetchall
 
-        sql = ("SELECT formatID, name, type, if(required=1,'true','false') as required, display, if(selected=1,'true','false') as selected, title FROM FormFormat WHERE formID=%s")
+        sql = ("SELECT formatID, name, type, if(required=1,'true','false') as required, display, if(selected=1,'true','false') as selected, title, `order` FROM FormFormat WHERE formID=%s")
 
         cursor.execute(sql, (_fieldId,))
         records = dictfetchall(cursor)
@@ -459,6 +459,7 @@ def sub_form():
         _display = _json['display']
         _selected = _json['selected']
         _title = _json['title']
+        _order = _json['order']
         _options = None
         try:
             _options = _json['options']
@@ -468,9 +469,9 @@ def sub_form():
         format_id = _name.lower()
         cursor = db.cursor()
 
-        insertFields = "INSERT INTO FormFormat (formID, formatID, name, type, required, display, selected, title) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)"
+        insertFields = "INSERT INTO FormFormat (formID, formatID, name, type, required, display, selected, title, `order`) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)"
         field = (_fname, format_id, _name, _type,
-                _required, _display, _selected, _title)
+                _required, _display, _selected, _title, _order)
 
         cursor.execute(insertFields, field)
 
