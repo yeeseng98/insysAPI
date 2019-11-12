@@ -4,48 +4,107 @@ from string import Template
 
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
+from flask_cors import CORS
 
-from flask import jsonify
+from flask import Flask, jsonify
 import mysql.connector
+from datetime import datetime
 
 MY_ADDRESS = 'TP041800@mail.apu.edu.my'
 PASSWORD = 'TP041800'
 
+app = Flask(__name__)
+CORS(app)
 
-def get_contacts():
-    """
-    Return two lists names, emails containing names and email addresses
-    read from a file specified by filename.
-    """
 
-    names = []
-    emails = []
-    db = mysql.connector.connect(
-        host="localhost",
-        user="root",
-        passwd="2247424yY",
-        database="intdatabase"
-    )
+def check_intakes_seven_days_due():
 
-    cursor = db.cursor()
-    cursor.execute("SELECT * FROM testTable")
+    try:
+        db = mysql.connector.connect(
+            host="localhost",
+            user="root",
+            passwd="2247424yY",
+            database="intdatabase"
+        )
 
-    records = cursor.fetchall()
+        now = datetime.now()
+        cur = now.strftime('%Y-%m-%d')
 
-    for row in records:
-        names.append(row[1])
-        emails.append(row[2])
+        print(cur)
+        sql = (
+            "SELECT * FROM intake_phase_duration WHERE DATE(endDate) = DATE_ADD(%s, INTERVAL 7 DAY)")
 
-    # INSERTION
-    # values_to_insert = [("TP041800", "yeeseng", "yeesengxp@gmail.com" ),("TP041801", "yeesengx", "TP041800@mail.apu.edu.my" )]
-    # query = "INSERT INTO testTable (Id, stdName, stdEmail) VALUES " + ",".join("(%s, %s, %s)" for _ in values_to_insert)
-    # flattened_values = [item for sublist in values_to_insert for item in sublist]
-    # mycursor.execute(query, flattened_values)
-    # db.commit()
+        cursor = db.cursor()
+        cursor.execute(sql, (cur,))
 
-    cursor.close()
+        records = cursor.fetchall()
 
-    return jsonify(names, emails)
+        row_count = cursor.rowcount
+
+        if row_count > 0:
+            dueIntakes = []
+
+            for row in records:
+                dueIntakes.append(row)
+            print(dueIntakes)
+            return find_students(dueIntakes)
+
+    except mysql.connector.Error:
+        print(cursor.statement)
+        db.rollback()
+        resp = jsonify('Something went wrong!')
+        resp.status_code = 500
+        return resp
+
+    finally:
+        if (db.is_connected()):
+            cursor.close()
+            db.close()
+
+
+def find_students(dueIntakes):
+
+    try:
+        db = mysql.connector.connect(
+            host="localhost",
+            user="root",
+            passwd="2247424yY",
+            database="intdatabase"
+        )
+
+        for intake in dueIntakes:
+            sql = (
+                "SELECT studentName, email, mentorEmail FROM int_student WHERE intake = %s")
+            cursor = db.cursor()
+            cursor.execute(sql, (intake[1],))
+            records = cursor.fetchall()
+
+            row_count = cursor.rowcount
+
+            if row_count > 0:
+                stdNames = []
+                students = []
+                mentors = []
+
+                for row in records:
+                    stdNames.append(row[0])
+                    students.append(row[1])
+                    mentors.append(row[2])
+                print(students)
+                generate_student_mails(stdNames, students)
+                generate_mentor_mails(mentors)
+
+    except mysql.connector.Error:
+        print(cursor.statement)
+        db.rollback()
+        resp = jsonify('Something went wrong!')
+        resp.status_code = 500
+        return resp
+
+    finally:
+        if (db.is_connected()):
+            cursor.close()
+            db.close()
 
 
 def read_template(filename):
@@ -59,11 +118,9 @@ def read_template(filename):
     return Template(template_file_content)
 
 
-def main():
-    names, emails = get_contacts()  # read contacts
+def generate_student_mails(studentNames, studentEmails):
     message_template = read_template('message.txt')
 
-    print(names)
     print(message_template)
 
     # set up the SMTP server
@@ -72,10 +129,10 @@ def main():
     s.login(MY_ADDRESS, PASSWORD)
 
     # For each contact, send the email:
-    for name, email in zip(names, emails):
-        msg = MIMEMultipart()       # create a message
+    for name, email in zip(studentNames, studentEmails):
+        msg = MIMEMultipart()       # create a messagetemplate
 
-        # add in the actual person name to the message template
+        # add in the actual person name to the message e
         message = message_template.substitute(PERSON_NAME=name.title())
 
         # Prints out the message body for our sake
@@ -97,5 +154,42 @@ def main():
     s.quit()
 
 
+def generate_mentor_mails(mentorEmails):
+    message_template = read_template('mentor.txt')
+
+    print(message_template)
+
+    # set up the SMTP server
+    s = smtplib.SMTP(host='smtp-mail.outlook.com', port=587)
+    s.starttls()
+    s.login(MY_ADDRESS, PASSWORD)
+
+    # For each contact, send the email:
+    for email in mentorEmails:
+        msg = MIMEMultipart()       # create a messagetemplate
+
+        # add in the actual person name to the message
+        message = message_template.substitute()
+
+        # Prints out the message body for our sake
+        print(message)
+
+        # setup the parameters of the message
+        msg['From'] = MY_ADDRESS
+        msg['To'] = email
+        msg['Subject'] = "This is TEST"
+
+        # add in the message body
+        msg.attach(MIMEText(message, 'plain'))
+
+        # send the message via the server set up earlier.
+        s.send_message(msg)
+        del msg
+
+    # Terminate the SMTP session and close the connection
+    s.quit()
+
+
 if __name__ == '__main__':
-    main()
+    with app.app_context():
+        check_intakes_seven_days_due()

@@ -1,6 +1,6 @@
 Dear ${PERSON_NAME}, 
 
-This is a test message. 
+This is a test message. You are a student.
 Have a great weekend! 
 
 Yours Truly

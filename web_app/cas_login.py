@@ -6,87 +6,17 @@ import mysql.connector
 from werkzeug.utils import secure_filename
 import json
 from flask_cors import CORS
-from datetime import datetime
+from datetime import datetime, timedelta
 from werkzeug.datastructures import ImmutableMultiDict
 import io
 from flask import send_file
+import time
+from threading import Timer
 
 random = SystemRandom()
 
 app = Flask(__name__)
 CORS(app)
-
-# TESTING API CALLS
-@app.route('/getcon', methods=['GET'])
-def get_contacts():
-    try:
-        db = mysql.connector.connect(
-            host="localhost",
-            user="root",
-            passwd="2247424yY",
-            database="intdatabase"
-        )
-
-        cursor = db.cursor()
-        cursor.execute("SELECT * FROM testTable")
-        # this will extract row headers
-        row_headers = [x[0] for x in cursor.description]
-        records = cursor.fetchall()
-        json_data = []
-        for result in records:
-            json_data.append(dict(zip(row_headers, result)))
-
-        return json.dumps(json_data)
-
-    except mysql.connector.Error:
-        print(cursor.statement)
-        db.rollback()
-        resp = jsonify('Something went wrong!')
-        resp.status_code = 500
-        return resp
-
-    finally:
-        if (db.is_connected()):
-            cursor.close()
-            db.close()
-
-
-@app.route('/upcon', methods=['POST'])
-def update_contacts():
-    try:
-        db = mysql.connector.connect(
-            host="localhost",
-            user="root",
-            passwd="2247424yY",
-            database="intdatabase"
-        )
-
-        _json = request.json
-        _name = _json['data']
-        _sid = _json['sid']
-        cursor = db.cursor()
-        sql = "UPDATE testTable SET stdName = %s WHERE id = %s"
-        val = (_name, _sid)
-
-        cursor.execute(sql, val)
-
-        db.commit()
-
-        resp = jsonify('User updated successfully!')
-        resp.status_code = 200
-        return resp
-
-    except mysql.connector.Error:
-        print(cursor.statement)
-        db.rollback()
-        resp = jsonify('Something went wrong!')
-        resp.status_code = 500
-        return resp
-
-    finally:
-        if (db.is_connected()):
-            cursor.close()
-            db.close()
 
 def dictfetchall(cursor):
     # "Returns all rows from a cursor as a dict"
@@ -1969,13 +1899,15 @@ def declare_new_student():
         _studentId = _json['studentId']
         _studentName = _json['studentName']
         _intake = _json['intake']
+        _email = _json['email']
+        _mentorEmail = _json['mentorEmail']
 
         now = datetime.now()
         cur = now.strftime('%Y-%m-%d %H:%M:%S')
 
         cursor = db.cursor()
-        sql = "INSERT INTO int_student (studentID, studentName, intake, isExtended, extensionDate, isApprovedCompany, isApprovedMeeting, companyID, companyName, dateSigned, internshipStatus) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"
-        val = (_studentId, _studentName, _intake, 'N', '', 'N', 'N', '', '', cur, 'Active')
+        sql = "INSERT INTO int_student (studentID, studentName, intake, isExtended, extensionDate, isApprovedCompany, isApprovedMeeting, companyID, companyName, dateSigned, internshipStatus, email, mentorEmail) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"
+        val = (_studentId, _studentName, _intake, 'N', '', 'N', 'N', '', '', cur, 'Active', _email, _mentorEmail)
         cursor.execute(sql, val)
 
         db.commit()
