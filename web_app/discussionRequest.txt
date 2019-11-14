@@ -1,0 +1,5 @@
+Dear supervisor, 
+
+A new discussion content approval request was sent by your mentee, ${PERSON_NAME}. Please respond to it soon.
+
+*This is an auto-generated mail by the system. Please do not reply.*

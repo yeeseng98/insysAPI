@@ -1,11 +1,8 @@
 import smtplib
-
 from string import Template
-
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from flask_cors import CORS
-
 from flask import Flask, jsonify
 import mysql.connector
 from datetime import datetime, timedelta

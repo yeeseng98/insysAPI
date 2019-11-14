@@ -1,0 +1,5 @@
+Dear ${PERSON_NAME}, 
+
+Your discussion approval request has been responded by your mentor! Please check its status on the internship system! 
+
+*This is an auto-generated mail by the system. Please do not reply.*

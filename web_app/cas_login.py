@@ -1,7 +1,6 @@
 from random import SystemRandom
-from flask import Flask, request, redirect, session, url_for, flash, jsonify
+from flask import Flask, request, redirect, session, url_for, flash, jsonify, render_template
 import os
-from flask import render_template, url_for
 import mysql.connector
 from werkzeug.utils import secure_filename
 import json
@@ -12,6 +11,11 @@ import io
 from flask import send_file
 import time
 from threading import Timer
+import smtplib
+from string import Template
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+
 
 random = SystemRandom()
 
@@ -1018,6 +1022,14 @@ def create_meeting():
 
         db.commit()
 
+        sql = (
+                "SELECT studentName, email, mentorEmail, intake FROM int_student WHERE studentId=%s")
+        cursor = db.cursor()
+        cursor.execute(sql, (_studentId,))
+        records = cursor.fetchone()
+
+        generateMail('DR', records[2], records[0])
+
         resp = jsonify('Request created successfully!')
         resp.status_code = 200
         return resp
@@ -1141,6 +1153,14 @@ def approve_req():
 
         db.commit()
 
+        sql = (
+                "SELECT studentName, email, mentorEmail, intake FROM int_student WHERE studentId=%s")
+        cursor = db.cursor()
+        cursor.execute(sql, (_studentId,))
+        records = cursor.fetchone()
+
+        generateMail('DA', records[1], records[0])
+
         resp = jsonify('Approval status updated successfully!')
         resp.status_code = 200
         return resp
@@ -1181,6 +1201,14 @@ def reject_req():
         cursor.execute(sql, val)
 
         db.commit()
+
+        sql = (
+                "SELECT studentName, email, mentorEmail, intake FROM int_student WHERE studentId=%s")
+        cursor = db.cursor()
+        cursor.execute(sql, (_studentId,))
+        records = cursor.fetchone()
+
+        generateMail('DA', records[1], records[0])
 
         resp = jsonify('Rejection status updated successfully!')
         resp.status_code = 200
@@ -1351,6 +1379,14 @@ def approve_com_app():
 
         db.commit()
 
+        sql = (
+                "SELECT studentName, email, mentorEmail, intake FROM int_student WHERE studentId=%s")
+        cursor = db.cursor()
+        cursor.execute(sql, (_studentId,))
+        records = cursor.fetchone()
+
+        generateMail('CA', records[1], records[0])
+
         resp = jsonify('Approval status updated successfully!')
         resp.status_code = 200
         return resp
@@ -1393,6 +1429,14 @@ def reject_com_app():
 
         db.commit()
 
+        sql = (
+                "SELECT studentName, email, mentorEmail, intake FROM int_student WHERE studentId=%s")
+        cursor = db.cursor()
+        cursor.execute(sql, (_studentId,))
+        records = cursor.fetchone()
+
+        generateMail('CA', records[1], records[0])
+        
         resp = jsonify('Rejection status updated successfully!')
         resp.status_code = 200
         return resp
@@ -2051,6 +2095,118 @@ def extend_internship():
         if (db.is_connected()):
             cursor.close()
             db.close()
+
+# EMAIL GENERATION
+MY_ADDRESS = 'TP041800@mail.apu.edu.my'
+PASSWORD = 'TP041800'
+
+def read_template(filename):
+    """
+    Returns a Template object comprising the contents of the 
+    file specified by filename.
+    """
+
+    with open(filename, 'r', encoding='utf-8') as template_file:
+        template_file_content = template_file.read()
+    return Template(template_file_content)
+
+def generateMail(mailType, email, name):
+
+    if mailType == 'CA':
+        message_template = read_template('companyApproval.txt')
+
+        print(message_template)
+
+        # set up the SMTP server
+        s = smtplib.SMTP(host='smtp-mail.outlook.com', port=587)
+        s.starttls()
+        s.login(MY_ADDRESS, PASSWORD)
+
+        msg = MIMEMultipart()       # create a messagetemplate
+
+        # add in the actual person name to the message
+        message = message_template.substitute(
+            PERSON_NAME=name.title())
+
+        # Prints out the message body for our sake
+        print(message)
+
+        # setup the parameters of the message
+        msg['From'] = MY_ADDRESS
+        msg['To'] = email
+        msg['Subject'] = "Company Application Request Status Update"
+
+        # add in the message body
+        msg.attach(MIMEText(message, 'plain'))
+
+        # send the message via the server set up earlier.
+        s.send_message(msg)
+        del msg
+
+        # Terminate the SMTP session and close the connection
+        s.quit()
+    
+    elif mailType == 'DA':
+        message_template = read_template('discussionApproval.txt')
+
+        print(message_template)
+
+        # set up the SMTP server
+        s = smtplib.SMTP(host='smtp-mail.outlook.com', port=587)
+        s.starttls()
+        s.login(MY_ADDRESS, PASSWORD)
+
+        msg = MIMEMultipart()       # create a messagetemplate
+
+        # add in the actual person name to the message
+        message = message_template.substitute(
+            PERSON_NAME=name.title())
+
+        # Prints out the message body for our sake
+        print(message)
+
+        # setup the parameters of the message
+        msg['From'] = MY_ADDRESS
+        msg['To'] = email
+        msg['Subject'] = "Discussion Content Approval Request Status Update"
+
+        # add in the message body
+        msg.attach(MIMEText(message, 'plain'))
+
+        # send the message via the server set up earlier.
+        s.send_message(msg)
+        del msg
+
+    elif mailType == 'DR':
+        message_template = read_template('discussionRequest.txt')
+
+        print(message_template)
+
+        # set up the SMTP server
+        s = smtplib.SMTP(host='smtp-mail.outlook.com', port=587)
+        s.starttls()
+        s.login(MY_ADDRESS, PASSWORD)
+
+        msg = MIMEMultipart()       # create a messagetemplate
+
+        # add in the actual person name to the message
+        message = message_template.substitute(
+            PERSON_NAME=name.title())
+
+        # Prints out the message body for our sake
+        print(message)
+
+        # setup the parameters of the message
+        msg['From'] = MY_ADDRESS
+        msg['To'] = email
+        msg['Subject'] = "New Discussion Request from Mentee"
+
+        # add in the message body
+        msg.attach(MIMEText(message, 'plain'))
+
+        # send the message via the server set up earlier.
+        s.send_message(msg)
+        del msg
 
 @app.route("/")
 def home():
