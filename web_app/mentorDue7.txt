@@ -1,0 +1,5 @@
+Dear supervisor, 
+
+Your mentee, ${PERSON_NAME}, will be ending the ${PHASE} of their internship programme in 7 days (${END_DATE}). Please remember to monitor their progress and proceed with grading afterwards.
+
+*This is an auto-generated mail by the system. Please do not reply.*

@@ -1,0 +1,5 @@
+Dear ${PERSON_NAME}, 
+
+The ${PHASE} of your internship programme will be ending in 7 days! Please remember to finish all your tasks by ${END_DATE}!
+
+*This is an auto-generated mail by the system. Please do not reply.*

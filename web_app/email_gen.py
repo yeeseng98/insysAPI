@@ -8,7 +8,11 @@ from flask_cors import CORS
 
 from flask import Flask, jsonify
 import mysql.connector
-from datetime import datetime
+from datetime import datetime, timedelta
+import time
+from threading import Timer
+import schedule
+import time
 
 MY_ADDRESS = 'TP041800@mail.apu.edu.my'
 PASSWORD = 'TP041800'
@@ -32,7 +36,7 @@ def check_intakes_seven_days_due():
 
         print(cur)
         sql = (
-            "SELECT * FROM intake_phase_duration WHERE DATE(endDate) = DATE_ADD(%s, INTERVAL 7 DAY)")
+            "SELECT wp.phaseID, intakeID, startDate, endDate, phaseName FROM intake_phase_duration ip INNER JOIN workflowPhase wp on ip.phaseID = wp.phaseID WHERE DATE(endDate) = DATE_ADD(%s, INTERVAL 7 DAY)")
 
         cursor = db.cursor()
         cursor.execute(sql, (cur,))
@@ -74,7 +78,7 @@ def find_students(dueIntakes):
 
         for intake in dueIntakes:
             sql = (
-                "SELECT studentName, email, mentorEmail FROM int_student WHERE intake = %s")
+                "SELECT studentName, email, mentorEmail, intake FROM int_student WHERE intake = %s")
             cursor = db.cursor()
             cursor.execute(sql, (intake[1],))
             records = cursor.fetchall()
@@ -85,14 +89,18 @@ def find_students(dueIntakes):
                 stdNames = []
                 students = []
                 mentors = []
+                intakes = []
 
                 for row in records:
                     stdNames.append(row[0])
                     students.append(row[1])
                     mentors.append(row[2])
+                    intakes.append(row[3])
                 print(students)
-                generate_student_mails(stdNames, students)
-                generate_mentor_mails(mentors)
+                generate_student_mails(
+                    stdNames, students, intake[3], intake[4])
+                generate_mentor_mails(
+                    mentors, stdNames, intakes, intake[3], intake[4])
 
     except mysql.connector.Error:
         print(cursor.statement)
@@ -118,8 +126,8 @@ def read_template(filename):
     return Template(template_file_content)
 
 
-def generate_student_mails(studentNames, studentEmails):
-    message_template = read_template('message.txt')
+def generate_student_mails(studentNames, studentEmails, endDate, phaseName):
+    message_template = read_template('studentDue7.txt')
 
     print(message_template)
 
@@ -133,7 +141,8 @@ def generate_student_mails(studentNames, studentEmails):
         msg = MIMEMultipart()       # create a messagetemplate
 
         # add in the actual person name to the message e
-        message = message_template.substitute(PERSON_NAME=name.title())
+        message = message_template.substitute(
+            PERSON_NAME=name.title(), END_DATE=endDate.title(), PHASE=phaseName.title())
 
         # Prints out the message body for our sake
         print(message)
@@ -141,7 +150,7 @@ def generate_student_mails(studentNames, studentEmails):
         # setup the parameters of the message
         msg['From'] = MY_ADDRESS
         msg['To'] = email
-        msg['Subject'] = "This is TEST"
+        msg['Subject'] = "Reminder for internship phase closure"
 
         # add in the message body
         msg.attach(MIMEText(message, 'plain'))
@@ -154,8 +163,8 @@ def generate_student_mails(studentNames, studentEmails):
     s.quit()
 
 
-def generate_mentor_mails(mentorEmails):
-    message_template = read_template('mentor.txt')
+def generate_mentor_mails(mentorEmails, studentNames, intakes, endDate, phaseName):
+    message_template = read_template('mentorDue7.txt')
 
     print(message_template)
 
@@ -165,11 +174,12 @@ def generate_mentor_mails(mentorEmails):
     s.login(MY_ADDRESS, PASSWORD)
 
     # For each contact, send the email:
-    for email in mentorEmails:
+    for email, stdName, intake in zip(mentorEmails, studentNames, intakes):
         msg = MIMEMultipart()       # create a messagetemplate
 
         # add in the actual person name to the message
-        message = message_template.substitute()
+        message = message_template.substitute(
+            PERSON_NAME=stdName.title(), INTAKE=intake.title(), END_DATE=endDate.title(), PHASE=phaseName.title())
 
         # Prints out the message body for our sake
         print(message)
@@ -177,7 +187,7 @@ def generate_mentor_mails(mentorEmails):
         # setup the parameters of the message
         msg['From'] = MY_ADDRESS
         msg['To'] = email
-        msg['Subject'] = "This is TEST"
+        msg['Subject'] = "Reminder for internship phase closure"
 
         # add in the message body
         msg.attach(MIMEText(message, 'plain'))
@@ -190,6 +200,23 @@ def generate_mentor_mails(mentorEmails):
     s.quit()
 
 
+# x = datetime.today()
+# y = x.replace(day=x.day, hour=12, minute=40, second=0,
+#               microsecond=0) + timedelta(days=1)
+# print(x)
+# print(y)
+# delta_t = y-x
+# print(delta_t)
+# secs = delta_t.total_seconds()
+
+# t = Timer(secs, check_intakes_seven_days_due)
+# t.start()
+
+schedule.every().day.at("12:00").do(check_intakes_seven_days_due)
+
+while True:
+    schedule.run_pending()
+    time.sleep(1)
+
 if __name__ == '__main__':
-    with app.app_context():
-        check_intakes_seven_days_due()
+    app.run(debug=True)
