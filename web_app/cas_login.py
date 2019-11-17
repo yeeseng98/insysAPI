@@ -955,6 +955,82 @@ def get_workflow_to_intakes():
             cursor.close()
             db.close()
 
+# gets all assigned workflows
+@app.route("/getAssignedWorkflows", methods=['GET'])
+def get_assigned_workflows():
+    try:
+        db = mysql.connector.connect(
+            host="localhost",
+            user="root",
+            passwd="2247424yY",
+            database="intdatabase"
+        )
+
+        cursor = db.cursor()
+        sql = "select * from workflow w INNER JOIN intake_workflow iw on w.workflowID = iw.workflowID"
+        cursor.execute(sql)
+
+        row_headers = [x[0] for x in cursor.description]
+        records = cursor.fetchall()
+
+        json_data = []
+        for result in records:
+            json_data.append(dict(zip(row_headers, result)))
+
+        return json.dumps(json_data, default=str)
+
+    except mysql.connector.Error:
+        print(cursor.statement)
+        db.rollback()
+        resp = jsonify('Something went wrong!')
+        resp.status_code = 500
+        return resp
+        
+    finally:
+        if (db.is_connected()):
+            cursor.close()
+            db.close()
+
+# gets details of selected workflow assignment
+@app.route("/getAssignedDetails", methods=['GET'])
+def get_assigned_details():
+    try:
+        db = mysql.connector.connect(
+            host="localhost",
+            user="root",
+            passwd="2247424yY",
+            database="intdatabase"
+        )
+
+        _workflowId = request.args.get('workflowId')
+        _intakeId = request.args.get('intakeId')
+
+        cursor = db.cursor()
+        sql = "select * from workflowphase wp INNER JOIN intake_phase_duration ip on ip.phaseID = wp.phaseID WHERE wp.workflowID = %s AND ip.intakeID = %s ORDER BY wp.phaseOrder"
+        val = (_workflowId, _intakeId)
+        cursor.execute(sql, val)
+
+        row_headers = [x[0] for x in cursor.description]
+        records = cursor.fetchall()
+
+        json_data = []
+        for result in records:
+            json_data.append(dict(zip(row_headers, result)))
+
+        return json.dumps(json_data, default=str)
+
+    except mysql.connector.Error:
+        print(cursor.statement)
+        db.rollback()
+        resp = jsonify('Something went wrong!')
+        resp.status_code = 500
+        return resp
+        
+    finally:
+        if (db.is_connected()):
+            cursor.close()
+            db.close()
+
 # TASK RELATED API CALLS
 # sends task info for a file task
 @app.route("/getFileTask", methods=['GET'])
